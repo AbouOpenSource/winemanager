@@ -1,0 +1,5 @@
+ErrorDocument 403 http://www.winemanager.fr/wm_accueil.php?menu_=ERROR403
+
+order deny,allow
+deny from all
+

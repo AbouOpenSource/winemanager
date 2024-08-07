@@ -1,0 +1,22 @@
+{
+    "name": "xavier/winemanager",
+    "description": "Platform fr=or wine manager",
+    "type": "project",
+    "require": {
+        "spipu/html2pdf": "^4.6"
+    },
+    "require-dev": {
+        "spipu/html2pdf": "^4.6"
+    },
+    "autoload": {
+        "psr-4": {
+            "Xavier\\Winemanager\\": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "AbouOpenSource",
+            "email": "aboudra1996@gmail.com"
+        }
+    ]
+}

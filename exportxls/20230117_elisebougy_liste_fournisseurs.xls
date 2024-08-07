@@ -1,0 +1,53 @@
+num_tiers|nom_tiers|categorie|adresse_1|adresse_2|cp|ville|telephone_fixe|nom_comptable|mail_comptable|contact_commission|mail_contact_commission|date_insertion|date_modification
+	
+36|ZIND HUMBRECHT||4 route de colmar||68230|TURCKHEIM|03 89 27 02 05|BALZINGER Frédérique|contact@zind-humbrecht.fr|WOELFFLIN Isabelle|info@zind-humbrecht.fr|2014-10-13 19:17:30|2016-04-11 16:48:22	
+37|MAISON SICHEL|Bordeaux|Château d'Argadens||33490|ST ANDRE DU BOIS|05 56 63 50 52|FAUGERE Chantal|commandes-france@sichel.fr|||2014-10-13 19:17:30|2019-10-04 14:26:03	
+38|CVH|Provence|1810 Route du Luberon||84360|PUGET EN DURANCE|04 90 08 90 79|Géraldine|Geraldine.MEUNIER@chselection.com|patricia Castells|contact@chselection.com|2014-10-13 19:17:30|2019-09-09 10:34:52	
+39|DOMAINE LEOUBE|Provence|2387 route de Leoube||83230|BORMES LES MIMOSAS|06 70 69 35 98|PIROUX Eric|info@chateauleoube.com|PIROUX Eric|ericpiroux@chateauleoube.com|2014-10-13 19:17:30|2016-04-05 10:42:13	
+	
+41|TARDIEU LAURENT||Les Grandes Bastides|Route de Cucuron|84160|LOURMARIN|04 90 68 80 25|TARDIEU Camille|info@tardieu-laurent.com||geraldine.meunier@chselection.com|2014-10-13 19:17:30|2019-06-25 10:53:35	
+42|PASCAL JOLIVET|Autre|Route de Chavignol||18300|SANCERRE|02 48 78 60 00|ODE Valerie|valerie@pascal-jolivet.com|Marion|marion@pascal-jolivet.com|2014-10-13 19:17:30|2019-10-17 12:00:54	
+44|SARL PIERRE ET BERTRAND COULY||1 rd point closeaux|Route des tours|37500|CHINON|02 47 93 64 19|COULY Bertrand|bertrand@pb-couly.com|COULY Michele|michele@pb-couly.com|2014-10-13 19:17:30|2015-01-27 09:23:30	
+45|DISTILLERIE DE PROVENCE||ZA Les Chalus||4300|FORCALQUIER|04 92 75 47 90|Aurore Bernadini|abernardini@distilleries-provence.com||commande@distilleries-provence.com|2014-10-13 19:17:30|2021-03-11 16:52:58	
+46|LES CAVES DU ROUSSILLON|Languedoc|1650 avenue Julien Panchot||66000|PERPIGNAN|04 68 54 40 04|Simon azema|simon.azema@lescavesduroussillon.com|Valerie|valerie.delos@lescavesduroussillon.com|2014-10-13 19:17:30|2017-09-26 20:43:54	
+47|NICOLAS ROSSIGNOL|Bourgogne||22 rue J Francois Champollion|21200|BEAUNE|+33 6 17 17 31 44|ROSSIGNOL Stephanie|stephanie.domainerossignol@gmail.com|Stephanie|stephanie@nicolas-rossignol.com|2014-10-13 19:17:30|2017-12-04 16:06:40	
+	
+	
+50|CHATEAU D'ESCLANS|Provence|4005 route de Callas||83920|LA MOTTE|04 94.60 40 47|PAGNON JUANA|sales@cavesdesclans.fr|||2014-10-13 19:17:30|2019-05-21 11:32:43	
+169|SARL BRET BROTHERS|Bourgogne|La Soufrandière|125 rue aux Bourgeois|71680|VINZELLES|03 85 35 67 72|Jean Guilaume Bret|contact@bretbrothers.com|||2015-02-08 10:50:24|2015-02-08 11:08:50	
+299|SOCIETE LEDA|Bordeaux|285 rue Nationale||33240|Saint Andre de Cubzac|05 57 94 09 35|Aurore Buffeteau|commande@maisonleda.fr|Céline Veillon|c.veillon@maisonleda.fr|2015-03-16 11:31:15|2019-10-10 11:45:12	
+300|DOMAINE LA GRANGE TIPHAINE|Autre|LA GRANGE TIPHAINE||37400|AMBOISE|06 83 72 80 47|Coralie DELECHENEAU|lagrangetiphaine@wanadoo.fr|||2015-03-16 11:34:08|2019-04-18 14:51:44	
+331|DOMAINE SAINT PREFERT|Vallée du Rhone|Quartier des serres|425 Chemin Saint Préfert|84230|CHATEAUNEUF DU PAPE|0)4 90 83 75 03|Emilie|commercial@st-prefert.com|Isabel|if@st-prefert.com|2015-03-21 10:13:43|2016-05-20 22:28:22	
+375|ANDRE ET MIREILLE TISSOT|Jura|QUARTIER BERNARD||39600|MONTIGNY LES ARSURES|0384660827|Stéphanie|contact@stephanetissot.com|||2015-04-27 19:37:49|2017-03-28 21:33:15	
+510|JEFF CARREL SARL THE WAY OF WINES|Languedoc|12 quai de lorraine||11000|Narbonne|0678255633|Thomas Meunier|order@jeffcarrel.com|||2015-06-26 22:04:58|2019-03-26 14:57:19	
+541|CAVIAR DE NEUVIC|Bordeaux|Domaine HUSO|La Grande Veyssiere|24190|Neuvic sur Isle|0782583174|Marie Gornes|marie.gornes@caviardeneuvic.com|YOANN|commandes@caviardeneuvic.com|2015-10-07 15:26:23|2015-10-15 16:14:06	
+553|LES BIENHEUREUX|Autre|10 avenue de la grande armee||75017|PARIS|0785574449|OLIVIER CARLES|olivier@lesbienheureux.com|FANNY|fanny.sirechandco@gmail.com|2015-10-28 21:37:03|2015-10-28 21:39:26	
+593|DOMAINE D EDOUARD|Bourgogne|43 RUE DES VALLON||89290|VAUX AUXERRE|0687207727|EDOUARD LEPESME|edouard@domaine-edouard.fr|SANDRINE SOUPAUX|sandrine@domaine-edouard.fr|2016-03-07 22:26:01|2022-11-16 08:48:30	
+596|BLD BOLLINGER DIFFUSION|Champagne|22 rue du General Foy||75008|Paris|0153014451 contact M|Alexandra|a.madej@bollinger-diffusion.fr|||2016-03-19 14:58:12|2017-11-01 13:29:16	
+609|DOMAINE PATTES LOUP|Bourgogne|2 Grande Rue Nicolas Droin||89800|COURGIS|03.86.41.46.38|Thomas Pico et Valérie|thomas.pico@pattes-loup.com|||2016-04-05 11:13:41|2016-04-05 11:17:11	
+643|DOMAINE LANGLOIS CHATEAU|Autre|3 Rue Léopold palustre||49400|Saint hilaire st florent|0241402140|Laurent Onillon|lonillon@langlois-chateau.fr|Laurence Girard|lgirard@langlois-chateau.fr|2016-05-04 17:12:56|2016-05-31 16:12:22	
+644|DOMAINE DE L A|Bordeaux|SCEA STEPHANE DERENONCOURT|11 LIEUDIT FILLOL|33350|SAINTE COLOMBE|0557246029|CHRISTINE DERENONCOURT|christine@domainedela.com||catherine@domainedela.com|2016-05-09 12:10:20|2022-06-27 14:28:59	
+716|DOMAINE CHANSON|Bourgogne|10 rue Paul Chanson||21200|Beaune|0380259797|Roxane Guevel|roxane.guevel@domaine-chanson.com|||2016-11-14 15:34:05|2016-11-14 15:36:11	
+735|DOMAINE DE MONTILLE, CHATEAU DE PULIGNY, DEUX MONTILLES|Bourgogne|RUE DU BUT||21190|PULIGNY MONTRACHET|0380213914|LAURA|laura@demontille.com||contact@demontille.com|2017-02-27 23:29:39|2018-01-31 16:42:20	
+737|MAISON CLUSEL ROCH|Vallée du Rhone|15 ROUTE DU LACAT||69420|AMPUIS|0474561595|Guillaume|contact@domaine-clusel-roch.fr|||2017-03-21 20:34:53|2020-06-15 11:40:00	
+738|DOMAINE SEROL|Autre|Les estinaudes||42370|Renaison|0477644404|Carine|contact@domaine-serol.com|||2017-03-24 12:42:01|2017-03-24 12:44:36	
+750|CHATEAU DE BERU|Bourgogne|32 GRAU DE RUE||89700|BERU|0386759043|Athenais de Beru|cave@chateaudeberu.com|Gaelle|cave@chateaudeberu.com|2017-05-04 21:51:29|2021-05-18 15:43:11	
+797|DOMAINE SYLVAIN PATAILLE|Bourgogne|14 rue neuve||21160|Marsannay la cote|0630948828|Maryse et Sylvain|domaine.sylvain.pataille@wanadoo.fr|||2017-11-16 16:11:48|2017-11-16 16:18:53	
+798|EURL CHATEAU FOSSE SECHE||Adrien et Guillaume Pire||49700|Brossay|0241522222|Guillaume|contact@chateaudefosseseche.fr|||2017-11-20 22:18:10|2017-11-20 22:22:50	
+813|DOMAINE LUNEAU PAPIN||3 LA GRANGE||44430|LE LANDREAU|0240064527|Sabine|contact@domaineluneaupapin.com|Marie|marie@domaineluneaupapin.com|2017-12-11 21:41:09|2017-12-11 21:43:48	
+817|SARL FAMILLE ILBERT COMBEL LA-SERRE|Sud-Ouest|LIEU DIT COURNOU|LA SERRE|46140|SAINT VINCENT RIVE D'OLT||SOPHIE|sophie.ilbert@combel-la-serre.com|SOPHIE||2017-12-17 18:13:46|2023-01-09 09:06:15	
+824|LE BOUT DU MONDE|Languedoc|15 rue notre dame||66720|LATOUR DE FRANCE|0677509422|Edouard|laffitte.edouard@neuf.fr|||2018-01-11 09:26:09|2018-03-21 09:26:21	
+845|LA FERME DES 7 LUNES|Vallée du Rhone|480, ROUTE DE LA VALLEE||07340|BOGY|0608041709 068224760|JACQUES|lafermedes7lunes@orange.fr|JEAN|jean.delobre@wanadoo.fr|2018-03-19 09:14:38|2022-02-21 15:15:11	
+849|SCEA JEROME BRETAUDEAU||1 BOULEVARD D ALATRI|RECOUVRANCE|44190|GETIGNE|0612851962|Jerome Bretaudeau|jbretaudeau@free.fr|Jerome Bretaudeau|bretaudeau-jerome@orange.fr|2018-03-19 09:56:09|2020-10-13 12:52:52	
+865|VINS IDENTITAIRES / ZALTO GLAS||SAS CARRE DESIGN|34 RUE DE LA BOULOIRE BP 8|02930|LAON CEDEX 9||Philippe Lentrebecq|caviste@vinsidentitaires.com|||2018-05-03 11:38:21|2018-05-03 11:40:59	
+877|FRANCOIS CHIDAINE|Autre|5 GRANDE RUE HUSSEAU||37270|MONTLOUIS SUR LOIRE|0247451914|Caroline|francois.chidaine@wanadoo.fr||contact@francois-chidaine.com|2018-07-16 17:54:27|2021-11-09 15:21:19	
+903|DOMAINE HUBERT LAMY|Bourgogne|20 RUE DES LAVIERES||21190|SAINT AUBIN|0380213255|KARINE|hubertlamydomaine@gmail.com|||2018-10-09 12:24:37|2022-10-10 17:09:49	
+913|VINS ET VOLAILLES|Autre|6 RUE BAUDOIN||93400|ST OUEN|0674246955|FLEUR GODART|fleurgodart@gmail.com||goutons@vinsetvolailles.com|2018-12-07 09:23:03|2021-11-10 15:57:20	
+986|JULIEN PILON|Vallée du Rhone|2 ZONE VITICOLE JASSOUX - GRAND VAL||42410|CHAVANAY|04 74 48 65 38|||Josiane Rambaud|julienpilon@yahoo.fr|2019-01-07 14:41:41|2020-09-24 09:36:01	
+999|LES BERTRAND|Vallée du Rhone|543 ROUTE DU CHATEAU GRAND PRE||69820|FLEURIE|04 74 69 81 96|Annick|bertrand.gp@orange.fr|||2019-02-15 16:29:46|2019-02-15 16:35:14	
+1042|SCEV GUIBERTEAU||3 IMPASSE DU CABERNET MOLLAY||49260|SAINT JUST SUR DIVE|02 41 38 78 94|Muriel et Blandine|contact.domaineguiberteau@orange.fr|||2019-05-13 11:11:48|2020-07-02 11:42:55	
+1231|SAS VIGNOBLES MICHON|Autre|LES CLOUS||85340|ILE D'OLONNE|02 51 22 03 68|THIERRY MICHON|thierry@domainesaintnicolas.com|PASCAL FAIVRE|pascale@domainesaintnicolas.com|2021-04-02 15:16:35|2022-03-04 12:09:57	
+1275|FUMEY CHATELAIN||2, QUARTIER SAINT-LAURENT||39600|MONTIGNY-LES-ARSURES|03 84 66 27 84|MARIN FUMEY|marinfumey.chatelain@gmail.com||contact@fumeychatelain.fr|2022-02-24 15:52:31|2022-11-04 10:27:05	
+1280|ANTOINE SANZAY|Autre|19, RUE DES ROCHES NEUVES||49400|VARRAINS|06 83 33 92 08 - 06|ANTOINE SANZAY|antoine-sanzay@wanadoo.fr|CHRISTELLE DALLANCON||2022-03-22 10:28:36|2022-04-04 11:38:55	
+	
+1289|DOMAINE DU BEL AIR|Autre|SAS GAUTHIER PIERRE ET RODOLPHE|6, LA MOTTE|37140|BENAIS|0247974106|SOPHIE GAUTHIER|sasgauthier37@orange.fr|||2022-05-24 11:54:37|2022-05-24 11:57:46	
