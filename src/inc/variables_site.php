@@ -1,6 +1,7 @@
 <?php
 //require_once('html2pdf/html2pdf.class.php');
 require_once dirname(__FILE__).'/../vendor/autoload.php';
+require_once 'data_access_class.php';
 
 $color1 = "#B3B3B3";  // gris
 $color2 = "#000000";  // noir
@@ -29,12 +30,12 @@ $mel_archive						= 'contact@winemanager.fr';
 
 $couleur_fond_entete				= '#FFF6FD';
 $couleur_bordure					= '#B3B3B3';
-$_SERVER['REMOTE_ADDR']             = 'localhost';
+//$_SERVER['REMOTE_ADDR']             = 'localhost';
 
 // fonction qui se lance au demarrage de la session ----------------------------------------------------------
 function f_demarrage ($login) {
 
-	include('inc/start_connexion.php');
+	//////include('inc/start_connexion.php');
 	
 	// SUPPRESSION DES COMMANDES A PB
 	$req_del_sql ="
@@ -42,9 +43,10 @@ function f_demarrage ($login) {
 	where		login_site	= '$login'
 	and			flag_ok		= 'N'";
 
-	$tab = mysql_query($req_del_sql) or die('<br> Erreur sql f_demarrage - 1');
+	
+	$tab = SPDO::getInstance()->query($req_del_sql) or die('<br> Erreur sql f_demarrage - 1');
 
-	include('inc/end_connexion.php');
+	////include('inc/end_connexion.php');
 }
 
 // fonction qui teste si le site est en maintenance si oui renvoi 1 sinon 0 ----------------------------------
@@ -165,20 +167,25 @@ function NormalDate_heure ($date_) {
   return $date_;
 }
 
-// Fonction prend en param�tre une date de type MySql yyyy-mm-dd et la retourne de la mani�re suivante dd/mm/yyyy
+// Fonction prend en parametre une date de type MySql yyyy-mm-dd et la retourne de la mani�re suivante dd/mm/yyyy
 function NormalDate ($date_) {
   //mb_eregi ("([0-9]{4})-([0-9]{1,2})-([0-9]{1,2})", $date_, $regs);
-  ereg ("([0-9]{4})-([0-9]{1,2})-([0-9]{1,2})", $date_, $regs);
-  $date_="$regs[3]/$regs[2]/$regs[1]";
-  return $date_;
+  //preg_match("([0-9]{4})-([0-9]{1,2})-([0-9]{1,2})", $date_, $regs);
+  //$date_="$regs[3]/$regs[2]/$regs[1]";
+  
+  $date_new_format =  date("d-m-Y", strtotime($date_));
+ 
+  return $date_new_format;
 }
 
 // Fonction prend en param�tre une date de type dd/mm/yyyy et la retourne de la mani�re suivante yyyy-mm-dd
 function mysqlDate ($date_) {
   //mb_eregi ("([0-9]{1,2})/([0-9]{1,2})/([0-9]{4})", $date_, $regs);
-  ereg ("([0-9]{1,2})/([0-9]{1,2})/([0-9]{4})", $date_, $regs);
-  $date_="$regs[3]-$regs[2]-$regs[1]";
-  return $date_;
+  //ereg ("([0-9]{1,2})/([0-9]{1,2})/([0-9]{4})", $date_, $regs);
+  //$date_="$regs[3]-$regs[2]-$regs[1]";
+
+    $date_new_format = date("Y-m-d", strtotime($date_));  
+  return $date_new_format;
 }
 
 // Fonction prend en param�tre une chaine et teste si c'est un entier
@@ -205,17 +212,26 @@ function f_test_float ($str_) {
 
 // Fonction permettant d'avoir / jour les differentes ip de connexion --------------------------------------------
 function insert_tb_log () {
-  include('inc/start_connexion.php');
-  $test = "select 1 res from tb_log where date(stamp_date)=CURRENT_DATE and visitor='".$_SERVER['REMOTE_ADDR']."'";
-  $tab = mysql_query($test) or die('<br> Erreur de test');
-  $tab_form = mysql_fetch_array($tab);
+  ////include('inc/start_connexion.php');
+  $request_count = "select 1 res from tb_log where date(stamp_date)=CURRENT_DATE and visitor='".$_SERVER['REMOTE_ADDR']."'";
+ 
+  try {
+  $pdo_instance = SPDO::getInstance();
+  $statement = $pdo_instance->prepare($request_count) or die('<br> Erreur de test');
+  $statement->execute(); // Récupérer les résultats 
+  $tab_form = $statement->fetch(PDO::FETCH_ASSOC);
+  if ($tab_form['res'] != 1) { 
+	// Insertion dans tb_log si la condition est remplie 
+	$ins = "INSERT INTO tb_log (stamp_date, visitor) VALUES (CURRENT_TIMESTAMP, :visitor)"; 
+	$stmt_ins = $pdo_instance->prepare($ins); 
+	$stmt_ins->execute(['visitor' => $_SERVER['REMOTE_ADDR']]); 
+	}  
+	}
+	catch(PDOException $e) 
+	{ die('<br> Erreur : ' . $e->getMessage()); }
   
-  if(!($tab_form['res'] == 1)) {
-    $ins = "insert into tb_log select CURRENT_TIMESTAMP, '".$_SERVER['REMOTE_ADDR']."'";
-    $tab = mysql_query($ins) or die('<br> Erreur de insert_tb_log');
-  }
   
-  include('inc/end_connexion.php');
+  ////include('inc/end_connexion.php');
 }
 
 // Retourne l'age en fonction de la date envoyee -----------------------------------------------------------------
@@ -239,7 +255,7 @@ function age($naiss)  {
 // Fonction de test de connexion ---------------------------------------------------------------------------------
 function f_test_connexion($login,$passwd) {
 
-  include('inc/start_connexion.php');
+  ////include('inc/start_connexion.php');
   $login=addslashes($login);
   $passwd=addslashes($passwd);
   
@@ -253,20 +269,28 @@ function f_test_connexion($login,$passwd) {
 			nb_lignes_commande,
 			e_mail
   from		ref_comptes 
-  where		login	= '$login' 
-  and		mdp		= md5('$passwd')";
+  where		login	= :login 
+  and		mdp		= md5(:passwd)";
   
-  $res_login = mysql_query ($req_connect) or die('<br> Erreur de req1');
-  $tab_login = mysql_fetch_array($res_login);
+  $pdo_instance = SPDO::getInstance();
+  $statement = $pdo_instance->prepare($req_connect);
+  $statement->execute(['login' => $login, 'passwd'=> $passwd]);
+
+
+
+  $tab_login = $statement->fetch(PDO::FETCH_ASSOC);
+
   
   $login_		= $tab_login['login'];
   $flag_date_	= $tab_login['flag_date'];
   
   // Connexion OK
   if ($login_ == $login and $flag_date_ == 'ok') {
-    $req_connect = "select date_format( max( stamp_date ) , '%d/%m/%Y %H:%i' ) stamp_date from tb_connection where login = '$login'";
-    $res_connect = mysql_query ($req_connect) or die('<br> Erreur de req1');
-    $tab_connect = mysql_fetch_array($res_connect);
+    $req_connect = "select date_format( max( stamp_date ) , '%d/%m/%Y %H:%i' ) stamp_date from tb_connection where login = :login";
+    $statement = $pdo_instance->prepare($req_connect);
+	$statement->execute(['login' => $login]);
+
+    $tab_connect = $statement->fetch(PDO::FETCH_ASSOC);
     
     $_SESSION['login']				= $tab_login['login'];
     $_SESSION['civilite']			= $tab_login['civilite'];
@@ -279,15 +303,17 @@ function f_test_connexion($login,$passwd) {
 	$_SESSION['flag_admin']			= $tab_login['flag_admin'];
 	$_SESSION['e_mail']			    = $tab_login['e_mail'];
     
-    $ins = "insert into tb_connection select '".$login."', CURRENT_TIMESTAMP, '".$_SERVER['REMOTE_ADDR']."'";
-    $tab = mysql_query($ins) or die('<br> Erreur de insert');
+    $ins = "insert into tb_connection select :login, CURRENT_TIMESTAMP, :remote_addr";
+	$statement = $pdo_instance->prepare($ins);
+	$tab = $statement->execute(['login' => $login, 'remote_addr' => $_SERVER['REMOTE_ADDR'] ]) or die('<br> Erreur de insert');
   }
   
-  include('inc/end_connexion.php');
+  ////include('inc/end_connexion.php');
 }
 
 // fonction qui affiche un tableau en parametre ----------------------------------------------
-function f_affiche_tableau ($tab_a_afficher, $tab_size) {
+function f_affiche_tableau ($statement, $tab_size) {
+$col_count = $statement->columnCount();
 
 $url_title = 'http://' . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI'] ;
 $url_title_rdv = $url_title;
@@ -295,10 +321,10 @@ $url_title_rdv = $url_title;
 echo '<table width=100%>';
 echo '<tr>';
 
-for ($i = 0; $i < mysql_num_fields($tab_a_afficher); $i++) {
+for ($i = 0; $i < $col_count; $i++) {
 	
 	$size=$tab_size[$i];
-	$nom_colonne = mysql_field_name($tab_a_afficher, $i);
+	$nom_colonne = $statement->getColumnMeta($i)['name'];
 	
 	if ($nom_colonne != 'num_reporting' and $nom_colonne != 'num_client' and $nom_colonne != 'num_produit' and $nom_colonne != 'num_commande' and $nom_colonne != 'num_fournisseur' and $nom_colonne != 'num_plv' and $nom_colonne != 'num_rdv') {
 		echo '<th bgcolor=#B3B3B3 class=style2 width='.$size.'%>';
@@ -335,38 +361,38 @@ for ($i = 0; $i < mysql_num_fields($tab_a_afficher); $i++) {
 }
 echo '</tr>';
  
-while ($ligne = mysql_fetch_row($tab_a_afficher)) {
-echo '<tr class=passage>';
- 
-	for ($j = 0; $j < count($ligne); $j++) {
-		
-		$nom_colonne = mysql_field_name($tab_a_afficher, $j);
+while ($ligne = $statement->fetch(PDO::FETCH_ASSOC)) {
+	//print_r($ligne);	
+ echo '<tr class=passage>';	
+ foreach ($ligne as $nom_colonne => $value)
+  {
+
 		
 		$position='left';
 		
 		// DEFINITION DES URLS
 		if ($nom_colonne == 'num_client') {
-			$url_client='wm_accueil.php?menu_=n_a&tiers_=client&id_client='.$ligne[$j];
+			$url_client='wm_accueil.php?menu_=n_a&tiers_=client&id_client='.$value;
 			$position='center';
 		}
 		
 		if ($nom_colonne == 'num_commande') {
-			$url_commande='wm_accueil.php?menu_=n_a&action_=commande&num_commande='.$ligne[$j];
+			$url_commande='wm_accueil.php?menu_=n_a&action_=commande&num_commande='.$value;
 			$position='center';
 		}
 		
 		if ($nom_colonne == 'num_fournisseur') {
-			$url_fournisseur='wm_accueil.php?menu_=n_a&tiers_=fournisseurs&id_client='.$ligne[$j];
+			$url_fournisseur='wm_accueil.php?menu_=n_a&tiers_=fournisseurs&id_client='.$value;
 			$position='center';
 		}
 		
 		if ($nom_colonne == 'num_plv') {
-			$url_envoyer='wm_accueil.php?menu_=n_a&action_=commande&num_plv_='.$ligne[$j];
+			$url_envoyer='wm_accueil.php?menu_=n_a&action_=commande&num_plv_='.$value;
 			$position='center';
 		}
 		
 		if ($nom_colonne == 'num_reporting') {
-			$url_reporting='wm_accueil.php?menu_=n_a&stats_=stats&act_=reporting&num_reporting_='.$ligne[$j];
+			$url_reporting='wm_accueil.php?menu_=n_a&stats_=stats&act_=reporting&num_reporting_='.$value;
 			//echo $url_reporting;
 			$position='center';
 		}
@@ -374,24 +400,24 @@ echo '<tr class=passage>';
 		if ($nom_colonne == 'num_rdv') {
 			if (strpos($url_title_rdv,'&num_rdv=') > 0) {
 				$pos=strripos($url_title_rdv, '='); 
-				$url_rdv=substr($url_title_rdv, 0,$pos+1).$ligne[$j];
+				$url_rdv=substr($url_title_rdv, 0,$pos+1).$value;
 			}
 			else if (strpos($url_title,'&calendrier_=') > 0) {
-				$id_client=f_retourne_client_id_num_rdv($ligne[$j]);
-				$url_rdv='wm_accueil.php?menu_=n_a&tiers_=client&id_client='.$id_client.'&tab_rdv_tier=Y&num_rdv='.$ligne[$j];
+				$id_client=f_retourne_client_id_num_rdv($ligne[$nom_colonne]);
+				$url_rdv='wm_accueil.php?menu_=n_a&tiers_=client&id_client='.$id_client.'&tab_rdv_tier=Y&num_rdv='.$value;
 			}
 			else {
-				$url_rdv=$url_title_rdv.'&num_rdv='.$ligne[$j];
+				$url_rdv=$url_title_rdv.'&num_rdv='.$value;
 			}
 			$position='center';
 		}
 		
 		if ($nom_colonne == 'Compte') {
-			$url_compte_mod='wm_accueil.php?menu_=compte_liste&compte_mod='.$ligne[$j];
+			$url_compte_mod='wm_accueil.php?menu_=compte_liste&compte_mod='.$value;
 		}
 		
 		if ($nom_colonne == 'num_produit') {
-			$url_produit='wm_accueil.php?menu_=n_a&produit_=produit&id_produit='.$ligne[$j];
+			$url_produit='wm_accueil.php?menu_=n_a&produit_=produit&id_produit='.$value;
 		}
 		
 		$tab_valeur_center = array('Derni&egrave;re connexion', 'Date', 'N� Client', 'N� Version', 'Date de Production', 'N� Fournisseur', 'Date cr�ation', 'Date modification', 'N� PLV', 'Date commande', 'Statut', 'Date de commande', 'Date de modification', 'Ann�e', 'num_client', 'num_commande', 'num_fournisseur', 'num_plv', 'Date RDV', 'Ann�e - Mois', 'Derniere commande');
@@ -411,57 +437,57 @@ echo '<tr class=passage>';
 
 		if ($nom_colonne != 'num_reporting' and $nom_colonne != 'num_client' and $nom_colonne != 'num_produit' and $nom_colonne != 'num_commande' and $nom_colonne != 'num_fournisseur' and $nom_colonne != 'num_plv' and $nom_colonne != 'num_rdv') { 
 
-			if ($ligne[$j] == 'Envoyer') {
+			if ($value == 'Envoyer') {
 				echo '<td align=left>';
-				echo "<span onClick=document.location='" . $url_envoyer . "'; style=cursor:pointer> $ligne[$j] </span>";
+				echo "<span onClick=document.location='" . $url_envoyer . "'; style=cursor:pointer> $value </span>";
 				echo '</td>';
 			}
 			
 			else if ($nom_colonne == 'N� Commande' or $nom_colonne == 'N� Devis' or $nom_colonne == 'Commande') {
 				echo '<td align=center>';
-				echo "<span onClick=document.location='" . $url_commande . "'; style=cursor:pointer> $ligne[$j] </span>";
+				echo "<span onClick=document.location='" . $url_commande . "'; style=cursor:pointer> $value </span>";
 				echo '</td>';
 			}
 			
 			else if ($nom_colonne == 'N&deg; RDV') {
 				echo '<td align=center>';
-				echo "<span onClick=document.location='" . $url_rdv . "'; style=cursor:pointer> $ligne[$j] </span>";
+				echo "<span onClick=document.location='" . $url_rdv . "'; style=cursor:pointer> $value </span>";
 				echo '</td>';
 			}
 			
 			else if ($nom_colonne == 'Client' or $nom_colonne == 'Prospect') {
 				echo '<td align=left>';
-				echo "<span onClick=document.location='" . $url_client . "'; style=cursor:pointer> $ligne[$j] </span>";
+				echo "<span onClick=document.location='" . $url_client . "'; style=cursor:pointer> $value </span>";
 				echo '</td>';
 			}
 			
 			else if ($nom_colonne == 'Fournisseur') {
 				echo '<td align=left>';
-				echo "<span onClick=document.location='" . $url_fournisseur . "'; style=cursor:pointer> $ligne[$j] </span>";
+				echo "<span onClick=document.location='" . $url_fournisseur . "'; style=cursor:pointer> $value </span>";
 				echo '</td>';
 			}
 			
 			else if ($nom_colonne == 'Produit') {
 				echo '<td align=left>';
-				echo "<span onClick=document.location='" . $url_produit . "'; style=cursor:pointer> $ligne[$j] </span>";
+				echo "<span onClick=document.location='" . $url_produit . "'; style=cursor:pointer> $value </span>";
 				echo '</td>';
 			}
 			
 			else if ($nom_colonne == 'Compte') {
 				echo '<td align=left>';
-				echo "<span onClick=document.location='" . $url_compte_mod . "'; style=cursor:pointer> $ligne[$j] </span>";
+				echo "<span onClick=document.location='" . $url_compte_mod . "'; style=cursor:pointer> $value </span>";
 				echo '</td>';
 			}
 			
 			else if ($nom_colonne == 'Exporter') {
 				echo '<td align=left>';
-				echo "<span onClick=document.location='" . $url_reporting . "'; style=cursor:pointer> $ligne[$j] </span>";
+				echo "<span onClick=document.location='" . $url_reporting . "'; style=cursor:pointer> $value </span>";
 				echo '</td>';
 			}
 			
 			else {
 				echo '<td class=style2 align='.$position.'>';
-				echo ($ligne[$j] == NULL) ? '<i>NULL</i>' : $ligne[$j];
+				echo ($value == NULL) ? '<i>NULL</i>' : $value;
 				echo '</td>';
 			}
 		
@@ -478,12 +504,12 @@ function f_affiche_tableau_global ($tab_a_afficher, $tab_size) {
 
 echo '<table width=100%>';
 
-while ($ligne = mysql_fetch_row($tab_a_afficher)) {
+while ($ligne = $tab_a_afficher->fetch(PDO::FETCH_NUM)) {
 echo '<tr>';
  
-	for ($j = 0; $j < count($ligne); $j++) {
+	for ($j = 0; $j < $tab_a_afficher->columnCount(); $j++) {
 		
-		$nom_colonne = mysql_field_name($tab_a_afficher, $j);
+		$nom_colonne = $tab_a_afficher->getColumnMeta($j)['name'];;
 		$size=$tab_size[$j];
 		$position='left';
 		
@@ -514,9 +540,10 @@ echo '</table>';
 // fonction qui retourne la liste a afficher des clients ou fournisseurs ----------------------------------------------
 function f_affiche_liste_client_fournisseurs ($login, $flag_clt_fou, $flag_clt_ppt) {
 
-include('inc/start_connexion.php');
+//include('inc/start_connexion.php');
 
-if      ($flag_clt_fou == 'C') { $nom_champ1 = 'num_client';		$nom_champ2 = 'N� Client'; if($flag_clt_ppt == 'C') {$nom_champ3 = 'Client';} if($flag_clt_ppt == 'P') {$nom_champ3 = 'Prospect';}  $condition = "and flag_client_prospect = '$flag_clt_ppt' ";}
+if      ($flag_clt_fou == 'C') 
+{ $nom_champ1 = 'num_client';		$nom_champ2 = 'N� Client'; if($flag_clt_ppt == 'C') {$nom_champ3 = 'Client';} if($flag_clt_ppt == 'P') {$nom_champ3 = 'Prospect';}  $condition = "and flag_client_prospect = '$flag_clt_ppt' ";}
 else if ($flag_clt_fou == 'F') { $nom_champ1 = 'num_fournisseur';	$nom_champ2 = 'N� Fournisseur'; $nom_champ3 = 'Fournisseur'; $condition = '';}
 else    { $nom_champ1 == 'num'; $nom_champ2 = 'N�'; $nom_champ3 = 'Entite';}
 
@@ -528,9 +555,9 @@ $order_query='order by ' . $id_col . ' ' . $sens_req;
 if ($flag_clt_fou == 'C' and $flag_clt_ppt == 'C') {
 
 $req_sql = " 
-select	num_tiers '$nom_champ1',
-		num_tiers '$nom_champ2', 
- 		nom_tiers '$nom_champ3', 
+select	num_tiers :nom_champ1,
+		num_tiers :nom_champ2, 
+ 		nom_tiers :nom_champ3, 
 		concat(adr_livraison_cp , ' - ', adr_livraison_ville ) 'CP - Ville',
 		date_format( date_insertion  , '%Y-%m-%d %H:%i' ) 'Date cr�ation',
 		date_format( date_modification  , '%Y-%m-%d %H:%i' ) 'Date modification',
@@ -545,11 +572,11 @@ select	num_tiers '$nom_champ1',
 			and		cc.num_tiers	= c.num_tiers
 		)  'Nb jours'
 from	wm_ref_tiers c
-where	c.login_site				= '$login' 
+where	c.login_site				= :login 
 and		c.tiers_visible				= 'O' 
-and		c.flag_fournisseur_client	= '$flag_clt_fou' 
-$condition 
-$order_query" ;
+and		c.flag_fournisseur_client	= :flag_clt_fou 
+:condition 
+:order_query" ;
 
 // % du size du tableau
 $tab_size[0]='0';
@@ -565,18 +592,18 @@ $tab_size[7]= '5';
 if ($flag_clt_fou == 'C' and $flag_clt_ppt == 'P') {
 
 $req_sql = " 
-select	num_tiers '$nom_champ1',
-		num_tiers '$nom_champ2', 
- 		nom_tiers '$nom_champ3', 
+select	num_tiers :nom_champ1,
+		num_tiers :nom_champ2, 
+ 		nom_tiers :nom_champ3, 
 		concat(adr_livraison_cp , ' - ',adr_livraison_ville) 'CP - Ville',
 		date_format( date_insertion  , '%Y-%m-%d %H:%i' ) 'Date cr�ation',
 		date_format( date_modification  , '%Y-%m-%d %H:%i' ) 'Date modification'
 from	wm_ref_tiers c
-where	c.login_site				= '$login' 
+where	c.login_site				= :login 
 and		c.tiers_visible				= 'O' 
-and		c.flag_fournisseur_client	= '$flag_clt_fou' 
-$condition 
-$order_query" ;
+and		c.flag_fournisseur_client	= :flag_clt_fou 
+:condition 
+:order_query" ;
 
 // % du size du tableau
 $tab_size[0]='0';
@@ -591,9 +618,9 @@ $tab_size[6]= '0';
 if ($flag_clt_fou == 'F') {
 
 $req_sql = " 
-select	num_tiers '$nom_champ1',
-		num_tiers '$nom_champ2', 
- 		nom_tiers '$nom_champ3', 
+select	num_tiers :nom_champ1',
+		num_tiers :nom_champ2', 
+ 		nom_tiers :nom_champ3', 
 		concat(adr_livraison_cp , ' - ', adr_livraison_ville ) 'CP - Ville',
 		date_format( date_insertion  , '%Y-%m-%d %H:%i' ) 'Date cr�ation',
 		date_format( date_modification  , '%Y-%m-%d %H:%i' ) 'Date modification',
@@ -614,11 +641,11 @@ select	num_tiers '$nom_champ1',
 			and		co.id_fournisseur	= c.num_tiers
 		)  'Nb jours'
 from	wm_ref_tiers c
-where	c.login_site				= '$login' 
+where	c.login_site				= :login 
 and		c.tiers_visible				= 'O' 
-and		c.flag_fournisseur_client	= '$flag_clt_fou' 
-$condition 
-$order_query" ;
+and		c.flag_fournisseur_client	= :flag_clt_fou 
+:condition 
+:order_query" ;
 
 // % du size du tableau
 $tab_size[0]='0';
@@ -631,42 +658,56 @@ $tab_size[6]= '10';
 $tab_size[7]= '5';
 }
 
-$res_sql = mysql_query ($req_sql) or die('<br> Erreur sql f_affiche_liste_client_fournisseurs ');
 
-f_affiche_tableau($res_sql, $tab_size);
 
-include('inc/end_connexion.php');
+$pdo_instance = SPDO::getInstance();
+$statement = $pdo_instance->prepare($req_sql);
+$statement->execute(['login' => $login, 
+							 'flag_clt_fou'=> $flag_clt_fou,
+							 'condition'  => $condition,
+							 'order_query' => $order_query,
+							 'nom_champ1' => $nom_champ1,
+							 'nom_champ2' => $nom_champ2,
+							 'nom_champ3' => $nom_champ3]) or die('<br> Erreur sql f_affiche_liste_client_fournisseurs');;
+
+
+
+f_affiche_tableau($statement, $tab_size);
+
 
 }
 
 // fonction qui calcule le nb de tiers ----------------------------------------------
 function f_calcul_nb_tiers ($login, $flag_clt_fou, $flag_clt_ppt) {
 
-include('inc/start_connexion.php');
+//include('inc/start_connexion.php');
 
 if ($flag_clt_fou == 'C') { $condition = "and flag_client_prospect = '$flag_clt_ppt' "; } else { $condition = ''; }
 
 $req_sql ="
 select	count(*) nb_tiers
 from	wm_ref_tiers
-where	login_site				= '$login'
+where	login_site				= :login
 and		tiers_visible			= 'O'
-and 	flag_fournisseur_client = '$flag_clt_fou'
-$condition";
+and 	flag_fournisseur_client = :flag_clt_fou
+:condition";
 
-$res_sql = mysql_query ($req_sql) or die('<br> Erreur sql f_calcul_nb_tiers ');
-$ligne = mysql_fetch_row($res_sql);
+$pdo_instance = SPDO::getInstance();
+$statement = $pdo_instance->prepare($req_sql);
+$statement->execute(['login' => $login, 'flag_clt_fou'=> $flag_clt_fou,'condition' => $condition ]) or die('<br> Erreur sql f_calcul_nb_tiers ');;
+
+$ligne = $statement->fetch(PDO::FETCH_NUM);
 
 return $ligne [0];
 
-include('inc/end_connexion.php');
+//include('inc/end_connexion.php');
 
 }
 
 // fonction qui affiche toutes les infos comptes ----------------------------------------------
 function f_affiche_compte($login) {
 
-include('inc/start_connexion.php');
+//include('inc/start_connexion.php');
 
 $req_sql ="
 select	login,
@@ -691,20 +732,24 @@ select	login,
 		nb_lignes_commande,
 		pied_de_mail
 from    ref_comptes
-where   login = '$login'";
+where   login = :login";
 
-$res_sql = mysql_query ($req_sql) or die('<br> Erreur sql f_affiche_compte ');
-$ligne = mysql_fetch_array($res_sql);
+$pdo_instance = SPDO::getInstance();
+$statement = $pdo_instance->prepare($req_sql);
+  
+
+$res_sql = $statement->execute(['login' => $login]) or die('<br> Erreur sql f_affiche_compte ');
+$ligne = $statement->fetch(PDO::FETCH_NUM);
 return $ligne;
 
-include('inc/end_connexion.php');
+//include('inc/end_connexion.php');
 
 }
 
 // fonction qui recupere toutes les infos clientes ----------------------------------------------
 function f_affiche_client($login, $id_client) {
 
-include('inc/start_connexion.php');
+//include('inc/start_connexion.php');
 
 $req_sql ="
 select	num_tiers,
@@ -741,22 +786,30 @@ select	num_tiers,
 		commentaire,
 		flag_client_prospect
 from    wm_ref_tiers
-where   login_site              = '$login'
-and     num_tiers               = $id_client
+where   login_site              = :login
+and     num_tiers               = :id_client
 and     flag_fournisseur_client = 'C'";
 
-$res_sql = mysql_query ($req_sql) or die('<br> Erreur sql f_affiche_client ');
-$ligne = mysql_fetch_array($res_sql);
+
+$pdo_instance = SPDO::getInstance();
+
+$statement = $pdo_instance->prepare($req_sql);
+$statement->execute(['login' => $login, 'id_client'=> $id_client]) or die('<br> Erreur sql f_affiche_client ');
+
+
+
+
+$ligne  = $statement->fetch(PDO::FETCH_NUM);
 return $ligne;
 
-include('inc/end_connexion.php');
+//include('inc/end_connexion.php');
 
 }
 
 // fonction qui recupere toutes les infos clientes ----------------------------------------------
 function f_affiche_fournisseur($login, $id_client) {
 
-include('inc/start_connexion.php');
+//include('inc/start_connexion.php');
 
 $req_sql ="
 select	num_tiers,
@@ -779,22 +832,26 @@ select	num_tiers,
 		flag_gestion_produit,
 		commentaire
 from    wm_ref_tiers
-where   login_site              = '$login'
-and     num_tiers               = '$id_client'
+where   login_site              = :login
+and     num_tiers               = :id_client
 and     flag_fournisseur_client = 'F'";
 
-$res_sql = mysql_query ($req_sql) or die('<br> Erreur sql f_affiche_fournisseur ');
-$ligne = mysql_fetch_array($res_sql);
+$pdo_instance = SPDO::getInstance();
+  $statement = $pdo_instance->prepare($req_sql);
+  $statement->execute(['login' => $login, 'id_client'=> $id_client]) or die('<br> Erreur sql f_affiche_fournisseur ');
+
+
+
+$ligne = $statement->fetch(PDO::FETCH_NUM);
 return $ligne;
 
-include('inc/end_connexion.php');
 
 }
 
 // fonction qui modifie les infos d'un compte ----------------------------------------------
 function f_modification_compte_mdp($login, $tab_mod) {
 
-include('inc/start_connexion.php');
+//include('inc/start_connexion.php');
 
 $mdp1	= trim($tab_mod['mdp1']);
 $mdp2	= trim($tab_mod['mdp2']);
@@ -804,15 +861,19 @@ if ($mdp1 == '') { return 'pb'; }
 if ($mdp2 == '') { return 'pb'; }
 if ($mdp3 == '') { return 'pb'; }
 
-include('inc/start_connexion.php');
+//include('inc/start_connexion.php');
 
 $req_sql ="
 select	mdp
 from    ref_comptes
-where   login = '$login'";
+where   login = :login";
 
-$res_sql = mysql_query ($req_sql) or die('<br> Erreur sql f_modification_compte_mdp - 1');
-$ligne = mysql_fetch_array($res_sql);
+$pdo_instance = SPDO::getInstance();
+$statement = $pdo_instance->prepare($req_sql);
+$statement->execute(['login' => $login]);
+
+$ligne = $statement->fetch(PDO::FETCH_NUM);
+
 $mdp_actuel = $ligne[0];
 
 if ( md5($mdp1) == $mdp_actuel and $mdp2 == $mdp3 ) {
@@ -821,24 +882,25 @@ if ( md5($mdp1) == $mdp_actuel and $mdp2 == $mdp3 ) {
 	
 	$req_sql ="
 	update	ref_comptes
-	set		mdp			= '$mdp_new',
+	set		mdp			= :mdp_new,
 			dat_upd		= CURRENT_TIMESTAMP
-	where	login		= '$login'";
+	where	login		= :login";
 
-	$tab = mysql_query($req_sql) or die('<br> Erreur sql f_modification_compte_mdp - 2');
+
+	$statement = $pdo_instance->prepare($req_sql);
+	$statement->execute(["login"=> $login, 'mdp_new'=> $mdp_new]) or die('<br> Erreur sql f_modification_compte_mdp - 2');
 		
 	return 'ok';
 }
 else { return 'pb'; }
 
-include('inc/end_connexion.php');
 
 }
 
 // fonction qui modifie les infos d'un compte ----------------------------------------------
 function f_modification_compte($login, $tab_mod) {
 
-include('inc/start_connexion.php');
+//include('inc/start_connexion.php');
 
 $nom_tiers			= trim($tab_mod['nom_tiers']);
 $nom				= trim($tab_mod['nom']);
@@ -874,16 +936,16 @@ set		nom_tiers			= '$nom_tiers',
 		pied_de_mail		= '$pied_de_mail'
 where	login				= '$login'";
 
-$tab = mysql_query($req_sql) or die('<br> Erreur sql f_modification_compte');
+  $pdo_instance = SPDO::getInstance();
+  $statement = $pdo_instance->prepare($req_sql);
+  $statement->execute() or die('<br> Erreur sql f_modification_compte');
 		
-include('inc/end_connexion.php');
 
 }
 
 // fonction qui modifie les infos clientes ----------------------------------------------
 function f_modification_client($login, $id_client, $tab_mod) {
 
-include('inc/start_connexion.php');
 
 $num_siret				= $tab_mod['num_siret'];
 $num_tva				= $tab_mod['num_tva'];
@@ -919,12 +981,14 @@ $commentaire			= $tab_mod['commentaire'];
 $req_sql ="
 select count(*) 
 from   wm_ref_tiers 
-where  login_site = '$login'
-and    nom_tiers  = trim('$nom_tiers')
+where  login_site = :login
+and    nom_tiers  = trim(:nom_tiers)
 and    flag_fournisseur_client = 'F'";
 
-$res_sql = mysql_query($req_sql) or die('<br> Erreur sql f_modification_client - 1 ');
-$ligne   = mysql_fetch_row($res_sql);
+$pdo_instance = SPDO::getInstance();
+$statement = $pdo_instance->prepare($req_sql);
+$statement->execute(['login' => $login, 'nom_tiers'=> $nom_tiers]);
+$ligne   = $statement->fetch(PDO::FETCH_NUM);
 
 if ($ligne[0] > 0) {
 	$nom_tiers      = $nom_tiers . ' CLIENT';
@@ -968,16 +1032,17 @@ where	num_tiers				= $id_client
 and		login_site				= '$login'
 and     flag_fournisseur_client = 'C'";
 
-$tab = mysql_query($req_sql) or die('<br> Erreur sql f_modification_client - 2 ');
+$statement = $pdo_instance->prepare($req_sql);
+$statement->execute() or die('<br> Erreur sql f_modification_client - 2');
+
 		
-include('inc/end_connexion.php');
 
 }
 
 // fonction qui modifie les infos fournisseur ----------------------------------------------
 function f_modification_fournisseur ($login, $id_client, $tab_mod) {
 
-include('inc/start_connexion.php');
+//include('inc/start_connexion.php');
 
 $num_siret				= $tab_mod['num_siret'];
 $num_tva				= $tab_mod['num_tva'];
@@ -1000,12 +1065,16 @@ $commentaire			= $tab_mod['commentaire'];
 $req_sql ="
 select count(*) 
 from   wm_ref_tiers 
-where  login_site = '$login'
-and    nom_tiers  = trim('$nom_tiers')
+where  login_site = :login
+and    nom_tiers  = trim(:nom_tiers)
 and    flag_fournisseur_client = 'C'";
 
-$res_sql = mysql_query($req_sql) or die('<br> Erreur sql f_modification_fournisseur - 1 ');
-$ligne   = mysql_fetch_row($res_sql);
+
+$pdo_instance = SPDO::getInstance();
+  $statement = $pdo_instance->prepare($req_sql);
+  $statement->execute(['login' => $login, 'nom_tiers'=> $nom_tiers]) or die('<br> Erreur sql f_modification_fournisseur - 1 ');
+
+$ligne   = $statement->fetch(PDO::FETCH_NUM);
 
 if ($ligne[0] > 0) {
 	$nom_tiers      = $nom_tiers . ' FOURNISSEUR';
@@ -1036,26 +1105,30 @@ where	num_tiers				= '$id_client'
 and		login_site				= '$login'
 and     flag_fournisseur_client = 'F'";
 
-$tab = mysql_query($req_sql) or die('<br> Erreur sql f_modification_fournisseur - 2');
+
+$statement = $pdo_instance->prepare($req_sql);
+$statement->execute() or die('<br> Erreur sql f_modification_fournisseur - 2');
 		
-include('inc/end_connexion.php');
+//include('inc/end_connexion.php');
 
 }
 
 // fonction qui supprime 1 client ----------------------------------------------
 function f_supprimer_client($login, $id_client) {
 
-include('inc/start_connexion.php');
+//include('inc/start_connexion.php');
 
 $req_upd_sql ="
 update	wm_ref_tiers
 set		tiers_visible = 'N'
-where	login_site = '$login'
-and		num_tiers = $id_client";
-		
-$tab = mysql_query($req_upd_sql) or die('<br> Erreur sql f_supprimer_client');
+where	login_site = :login
+and		num_tiers = :id_client";
 
-include('inc/end_connexion.php');
+$pdo_instance = SPDO::getInstance();
+  $statement = $pdo_instance->prepare($req_upd_sql);	
+  $statement->bindParam('login', $login, PDO::PARAM_STR);
+  $statement->bindParam('id_client', $id_client, PDO::PARAM_INT) or die('<br> Erreur sql f_supprimer_client');
+
 
 }
 
@@ -1064,56 +1137,63 @@ function f_ajoute_tiers($login, $flag_fournisseur_client) {
 
 f_supprime_tiers_invalide($login);
 
-include('inc/start_connexion.php');
+//include('inc/start_connexion.php');
 
 $req_ins_sql ="
 insert into wm_ref_tiers (date_insertion, date_modification, login_site, flag_fournisseur_client, tiers_visible) 
-values (CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, '$login', '$flag_fournisseur_client', 'O')";
-
-$tab = mysql_query($req_ins_sql) or die('<br> Erreur sql f_ajoute_tiers - 1');
+values (CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, :login, :flag_fournisseur_client, 'O')";
+$pdo_instance = SPDO::getInstance();
+$statement = $pdo_instance->prepare($req_ins_sql);
+$statement->execute(['login' => $login, 'flag_fournisseur_client'=> $flag_fournisseur_client]) or die('<br> Erreur sql f_ajoute_tiers - 1');
 
 $req_sql ="
 select	max(num_tiers) id_client
 from	wm_ref_tiers
-where	login_site	= '$login'
+where	login_site	= :login
 and		nom_tiers	is null";
 
-$res_sql = mysql_query ($req_sql) or die('<br> Erreur sql f_ajoute_tiers - 2');
-$ligne = mysql_fetch_array($res_sql);
+$statement = $pdo_instance->prepare($req_sql);
+
+$statement->execute(['login' => $login]) or die('<br> Erreur sql f_ajoute_tiers - 2');
+
+
+$ligne = $statement->fetch(PDO::FETCH_NUM);
 return $ligne[0];
 
-include('inc/end_connexion.php');
 
 }
 
 // fonction qui supprime les clients invalides ----------------------------------------------
 function f_supprime_tiers_invalide($login) {
 
-include('inc/start_connexion.php');
+//include('inc/start_connexion.php');
 
 $req_del_sql ="
 delete from wm_ref_tiers 
-where login_site = '$login'
+where login_site = :login
 and   (nom_tiers  = '' or nom_tiers is null)";
 
-$tab = mysql_query($req_del_sql) or die('<br> Erreur sql f_supprime_tiers_invalide - 1');
+$pdo_instance = SPDO::getInstance();
+$statement = $pdo_instance->prepare($req_del_sql);
+$statement->execute(['login' => $login]);
 
-include('inc/end_connexion.php');
+
 }
 
 // fonction qui supprime les commandes invalides ----------------------------------------------
 function f_supprime_commande_invalide($login) {
 
-include('inc/start_connexion.php');
+//include('inc/start_connexion.php');
 
 $req_del_sql ="
 delete from wm_client_commande 
-where login_site = '$login'
+where login_site = :login
 and   num_tiers  = 0";
-	
-$tab = mysql_query($req_del_sql) or die('<br> Erreur sql f_supprime_commande_invalide - 1');
 
-include('inc/end_connexion.php');
+$pdo_instance = SPDO::getInstance();
+$statement = $pdo_instance->prepare($req_del_sql);
+$statement->execute(['login' => $login]) or die('<br> Erreur sql f_supprime_commande_invalide - 1');
+
 }
 
 // fonction qui ajoute les infos clientes ----------------------------------------------
@@ -1121,25 +1201,29 @@ function f_ajoute_commande_devis($login, $type_commande) {
 
 f_supprime_commande_invalide($login);
 
-include('inc/start_connexion.php');
+//include('inc/start_connexion.php');
 
 $req_ins_sql ="
-insert into wm_client_commande (date_insertion, date_modification, login_site, type_commande, commande_visible, etat_commande, num_tiers, commande_date) 
-values (CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, '$login', '$type_commande', 'O', 'E', 0, CURRENT_DATE)";
+insert into wm_client_commande (date_insertion, date_modification, login_site, type_commande, commande_visible, etat_commande, num_tiers, commande_date, flag_ok) 
+values (CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, :login, :type_commande, 'O', 'E', 0, CURRENT_DATE, 'N')";
+$pdo_instance = SPDO::getInstance();
+$statement = $pdo_instance->prepare($req_ins_sql);
+$statement->execute(['login' => $login, 'type_commande' => $type_commande ]) or die('<br> Erreur sql f_ajoute_commande_devis - 1');
 	
-$tab = mysql_query($req_ins_sql) or die('<br> Erreur sql f_ajoute_commande_devis - 1');
 
 $req_sql ="
 select	max(num_commande) num_commande
 from	wm_client_commande
-where	login_site	     = '$login'
+where	login_site	     = :login
 and     commande_visible = 'O'";
 
-$res_sql = mysql_query ($req_sql) or die('<br> Erreur sql f_ajoute_commande_devis - 2');
-$ligne = mysql_fetch_array($res_sql);
+$statement = $pdo_instance->prepare($req_sql);
+$statement->execute(['login' => $login]) or die('<br> Erreur sql f_ajoute_commande_devis - 2');
+
+$ligne = $statement->fetch(PDO::FETCH_NUM);
+
 return $ligne[0];
 
-include('inc/end_connexion.php');
 
 }
 
@@ -1155,28 +1239,32 @@ $req_sql = "
 select	ifnull(count(*), 0) nb_lignes
 from	wm_client_commande c,
         wm_ref_tiers       t
-where	c.login_site    = '$login'
+where	c.login_site    = :login
 and		c.login_site    = t.login_site
 and     c.num_tiers     = t.num_tiers
-and		c.type_commande = '$flag_devis_commande'
-and		c.etat_commande = '$flag_etat'";
+and		c.type_commande = :flag_devis_commande
+and		c.etat_commande = :flag_etat";
 
 }
 
-include('inc/start_connexion.php');
+$pdo_instance = SPDO::getInstance();
+  $statement = $pdo_instance->prepare($req_sql);
+  $statement->execute([
+	'login' => $login, 
+	'flag_devis_commande'=> $flag_devis_commande,
+	'flag_etat' => $flag_etat
 
-$res_sql = mysql_query ($req_sql) or die('<br> Erreur sql f_calcul_nb_commande_devis');
-$ligne = mysql_fetch_array($res_sql);
+]) or die('<br> Erreur sql f_calcul_nb_commande_devis');
+result: $ligne = $statement->fetch(PDO::FETCH_NUM);
 return $ligne[0];
 
-include('inc/end_connexion.php');
 
 }
 
 // fonction qui retourne la liste a afficher des commandes / devis en fonction de l'etat ----------------------------
 function f_affiche_liste_commande_devis ($flag_commande_devis, $flag_etat, $login) {
 
-include('inc/start_connexion.php');
+//include('inc/start_connexion.php');
 
 if ($flag_commande_devis == 'C') {$nom_champ = 'N� Commande';}
 else if ($flag_commande_devis == 'D') {$nom_champ = 'N� Devis';}
@@ -1194,19 +1282,19 @@ $order_query='order by ' . $id_col . ' ' . $sens_req;
 $req_sql = "
 select	c.num_tiers		num_client,
 		c.num_commande	num_commande,
-		c.num_commande	'$nom_champ',
+		c.num_commande	:nom_champ,
         t.nom_tiers		'Client',
 		case c.etat_commande when 'A' then 'Annul�e' when 'V' then 'Valid�e' when 'T' then 'Termin�e' when 'E' then 'En cours' else '' end Statut,	
-		(select round(ifnull(sum(quantite*prix_ht),0),2) from wm_commande wc where login_site = '$login' and wc.num_commande = c.num_commande) 'Total HT',
+		(select round(ifnull(sum(quantite*prix_ht),0),2) from wm_commande wc where login_site = :login and wc.num_commande = c.num_commande) 'Total HT',
 		date_format(c.commande_date,'%Y-%m-%d')	'Date commande',
 		date_format(c.date_modification,'%Y-%m-%d')	'Date modification',
 		date_format(c.date_insertion,'%Y-%m-%d')	'Date cr�ation'
 from	wm_client_commande c,
         wm_ref_tiers       t
-where	c.login_site    = '$login'
+where	c.login_site    = :login
 and		c.login_site    = t.login_site
 and     c.num_tiers     = t.num_tiers
-and		c.type_commande = '$flag_commande_devis'
+and		c.type_commande = :flag_commande_devis
 $order_query";
 
 // % du size du tableau
@@ -1234,18 +1322,18 @@ $order_query='order by ' . $id_col . ' ' . $sens_req;
 $req_sql = "
 select	c.num_tiers		num_client,
 		c.num_commande	num_commande,
-		c.num_commande	'$nom_champ',
+		c.num_commande	:nom_champ,
         t.nom_tiers		'Client',
-		(select round(ifnull(sum(quantite*prix_ht),0),2) from wm_commande wc where login_site = '$login' and wc.num_commande = c.num_commande) 'Total HT',
+		(select round(ifnull(sum(quantite*prix_ht),0),2) from wm_commande wc where login_site = :login and wc.num_commande = c.num_commande) 'Total HT',
 		date_format(c.commande_date,'%Y-%m-%d')	'Date de commande',
 		date_format(c.date_modification,'%Y-%m-%d')	'Date de modification'
 from	wm_client_commande c,
         wm_ref_tiers       t
-where	c.login_site    = '$login'
+where	c.login_site    = :login
 and		c.login_site    = t.login_site
 and     c.num_tiers     = t.num_tiers
-and		c.type_commande = '$flag_commande_devis'
-and		c.etat_commande = '$flag_etat'
+and		c.type_commande = :flag_commande_devis
+and		c.etat_commande = :flag_etat
 $order_query";
 
 // % du size du tableau
@@ -1260,17 +1348,25 @@ $tab_size[7]='0';
 
 }
 
-$res_sql = mysql_query ($req_sql) or die('<br> Erreur sql f_affiche_liste_commande_devis ');
+$pdo_instance = SPDO::getInstance();
+  $statement = $pdo_instance->prepare($req_sql);
+  $statement->execute(['login' => $login, 
+  								'nom_champ'=> $nom_champ,
+								'flag_commande_devis' => $flag_commande_devis, 'flag_etat' => $flag_etat
+							
+							]) or die('<br> Erreur sql f_affiche_liste_commande_devis ');
 
-f_affiche_tableau($res_sql, $tab_size);
 
-include('inc/end_connexion.php');
+
+
+f_affiche_tableau($statement, $tab_size);
+
 
 }
 
 function f_affiche_liste_commande_devis_client ($num_client, $login, $flag_commande_devis) {
 
-include('inc/start_connexion.php');
+//include('inc/start_connexion.php');
 
 if ($flag_commande_devis == 'C') {$nom_champ = 'N� Commande';}
 else if ($flag_commande_devis == 'D') {$nom_champ = 'N� Devis';}
@@ -1287,11 +1383,19 @@ $order_query='order by ' . $id_col . ' ' . $sens_req;
 $req_sql = "
 select	nom_tiers, flag_fournisseur_client
 from	wm_ref_tiers       t
-where	login_site    = '$login'
-and		num_tiers     = $num_client";
+where	login_site    = :login
+and		num_tiers     = :num_client";
 
-$res_sql = mysql_query ($req_sql) or die('<br> Erreur sql f_affiche_liste_commande_devis_client - 1');
-$ligne = mysql_fetch_array($res_sql);
+$pdo_instance = SPDO::getInstance();
+  $statement = $pdo_instance->prepare($req_sql);
+ 
+  $statement->bindParam('login', $login, PDO::PARAM_STR);
+  $statement->bindParam('num_client', $num_client, PDO::PARAM_INT);
+  
+  $statement->execute() or die('<br> Erreur sql f_affiche_liste_commande_devis_client - 1');
+$ligne = $statement->fetch(PDO::FETCH_NUM);
+
+
 $nom_client = $ligne[0];
 $flag_fournisseur_client = $ligne[1];
 
@@ -1305,19 +1409,19 @@ $titre = $flag_cd . ' du ' . $flag_fournisseur_client . ' : ' . $lien;
 $req_sql = "
 select	c.num_tiers		num_client,
 		c.num_commande	num_commande,
-		c.num_commande	'$nom_champ',
+		c.num_commande	:nom_champ,
 		case c.etat_commande when 'A' then 'Annul�e' when 'T' then 'Termin�e' when 'E' then 'En cours' else '' end Statut,	
-		(select group_concat(f.nom_tiers) from wm_ref_tiers f, wm_commande_plv p where f.num_tiers = p.id_fournisseur and f.login_site = p.login_site and p.num_commande = c.num_commande and p.login_site = '$login') 'Fournisseurs',
-		(select round(ifnull(sum(quantite*prix_ht),0),2) from wm_commande wc where login_site = '$login' and wc.num_commande = c.num_commande) 'Total HT',
+		(select group_concat(f.nom_tiers) from wm_ref_tiers f, wm_commande_plv p where f.num_tiers = p.id_fournisseur and f.login_site = p.login_site and p.num_commande = c.num_commande and p.login_site = :login) 'Fournisseurs',
+		(select round(ifnull(sum(quantite*prix_ht),0),2) from wm_commande wc where login_site = :login and wc.num_commande = c.num_commande) 'Total HT',
 		date_format(c.commande_date,'%Y-%m-%d')	'Date de commande',
 		date_format(c.date_modification,'%Y-%m-%d')	'Date modification',
 		date_format(c.date_insertion,'%Y-%m-%d')	'Date cr�ation'
 from	wm_client_commande c,
         wm_ref_tiers       t
-where	c.login_site    = '$login'
+where	c.login_site    = :login
 and		c.login_site    = t.login_site
 and     c.num_tiers     = t.num_tiers
-and		c.num_tiers     = $num_client
+and		c.num_tiers     = :num_client
 and		c.type_commande = '$flag_commande_devis'
 $order_query";
 
@@ -1332,7 +1436,20 @@ $tab_size[6]='10'; // Date de commande
 $tab_size[7]='10'; // Date modification
 $tab_size[8]='10'; // Date cr�ation
 
-$res_sql = mysql_query ($req_sql) or die('<br> Erreur sql f_affiche_liste_commande_devis_client - 2');
+
+$pdo_instance = SPDO::getInstance();
+$statement = $pdo_instance->prepare($req_sql);
+
+$statement->bindParam('nom_champ', $nom_champ, PDO::PARAM_STR);
+$statement->bindParam('num_client',$num_client, PDO::PARAM_INT);
+$statement->bindParam('login',$login, PDO::PARAM_STR);
+
+
+
+
+			
+
+$res_sql = $statement->execute() or die('<br> Erreur sql f_affiche_liste_commande_devis_client - 2');
 
 // Affichage du tableau
 echo '<table width=100% cellpadding=0 align=center border=0 class=style_form_1>';
@@ -1347,9 +1464,9 @@ echo '<td> <br> </td>';
 echo '</tr>';
 echo '</table>';
 
-f_affiche_tableau($res_sql, $tab_size);
+f_affiche_tableau($statement, $tab_size);
 
-include('inc/end_connexion.php');
+//include('inc/end_connexion.php');
 
 }
 
@@ -1358,24 +1475,33 @@ function f_form_affiche_liste_clients_fournisseurs ($login, $flag_clt_fou, $prem
 
 echo '<option>' . $premiere_ligne . '</option>';
 
-include('inc/start_connexion.php');
+//include('inc/start_connexion.php');
 
 $req_sql = "
 select	nom_tiers_code
 from	wm_ref_tiers 
-where	login_site				= '$login'
+where	login_site				= :login
 and		tiers_visible			= 'O'
-and     flag_fournisseur_client	= '$flag_clt_fou'
-and		trim(nom_tiers_code)	!= trim('$premiere_ligne')
+and     flag_fournisseur_client	= :flag_clt_fou
+and		trim(nom_tiers_code)	!= trim(:premiere_ligne)
 order by nom_tiers_code";
 
-$list_fournisseurs = mysql_query ($req_sql) or die('<br> Erreur sql f_form_affiche_liste_fournisseurs');
 
-while ($tab_res = mysql_fetch_array($list_fournisseurs)) {
-      echo '<option>' . $tab_res[0]. '</option>';
+$pdo_instance = SPDO::getInstance();
+  $statement = $pdo_instance->prepare($req_sql);
+  $statement->bindParam("login", $login, PDO::PARAM_STR);
+  $statement->bindParam("flag_clt_fou", $flag_clt_fou, PDO::PARAM_STR);
+  $statement->bindParam("premiere_ligne", $premiere_ligne, PDO::PARAM_STR);
+
+
+
+ $statement->execute() or die('<br> Erreur sql f_form_affiche_liste_fournisseurs');
+
+while ($ligne = $statement->fetch(PDO::FETCH_NUM)) {
+      echo '<option>' . $ligne[0]. '</option>';
 }
 
-include('inc/end_connexion.php');
+//include('inc/end_connexion.php');
 }
 
 // fonction qui affiche les n lignes dans le formulaire commande  -----------------------
@@ -1390,8 +1516,8 @@ select	f.nom_tiers_code			nom_fournisseur,
 		case c.flag_ok when 'O' then round(c.quantite*c.prix_ht,2) else 0 end total_ligne
 from    wm_commande			c,
 		wm_ref_tiers		f
-where   c.login_site              = '$login'
-and		c.num_commande		      = $id_commande
+where   c.login_site              = :login
+and		c.num_commande		      = :id_commande
 and     c.id_fournisseur          = f.num_tiers
 and     f.flag_fournisseur_client = 'F'
 and     c.login_site		      = f.login_site
@@ -1425,10 +1551,16 @@ $v_total       = '' ;
 
 $cpt=0;
 
-include('inc/start_connexion.php');
-$res_sql = mysql_query ($req_sql) or die('<br> Erreur sql f_form_affiche_lignes_commandes');
+//include('inc/start_connexion.php');
+$pdo_instance = SPDO::getInstance();
+  $statement = $pdo_instance->prepare($req_sql);
+  $statement->bindParam('login', $login,PDO::PARAM_STR);
+  $statement->bindParam('id_commande', $id_commande,type: PDO::PARAM_INT);
+  
+  $statement->execute() or die('<br> Erreur sql f_form_affiche_lignes_commandes');
 
-while ($ligne = mysql_fetch_row($res_sql)) {
+
+while ($ligne = $statement->fetch(PDO::FETCH_NUM)) {
 	$cpt=$cpt+1;
 	if($cpt == $i) {
 		for ($j = 0; $j < count($ligne); $j++) {
@@ -1442,7 +1574,7 @@ while ($ligne = mysql_fetch_row($res_sql)) {
 	}
 }
 
-include('inc/end_connexion.php');
+//include('inc/end_connexion.php');
 
 echo '<tr valign=center>';
 echo '<td align=center>';
@@ -1489,7 +1621,7 @@ $nom_client = trim($tab_com_client['nom_client']);
 $id_client = f_retourne_id_tiers ($login, $nom_client);
 
 if ($id_client > 0) {
-include('inc/start_connexion.php');
+//include('inc/start_connexion.php');
 
 $commande_date		= trim($tab_com_client['commande_date']);
 $type_commande		= trim($tab_com_client['type_commande']);
@@ -1528,17 +1660,27 @@ set		commande_date			= '$commande_date',
 where	num_commande			= $id_commande
 and		login_site				= '$login'";
 
-$tab = mysql_query($req_sql) or die('<br> Erreur sql f_modification_commande - 1');
+  $pdo_instance = SPDO::getInstance();
+  $statement = $pdo_instance->prepare($req_sql);
+
+
+  $statement->execute() or die('<br> Erreur sql f_modification_commande - 1');
 
 // GESTION DE LA TABLE wm_commande & PLV
 
 // Suppression
 $req_del_sql ="
 delete	from wm_commande
-where	login_site		= '$login'
-and		num_commande	= $id_commande";
+where	login_site		= :login
+and		num_commande	= :id_commande";
 
-$tab = mysql_query($req_del_sql) or die('<br> Erreur sql f_modification_commande - 2');
+
+$pdo_instance = SPDO::getInstance();
+  $statement = $pdo_instance->prepare($req_del_sql);
+  $statement->bindParam('login', $login, PDO::PARAM_STR);
+  $statement->bindParam('login', $id_commande, PDO::PARAM_INT);
+  
+  $statement->execute() or die('<br> Erreur sql f_modification_commande - 2');
 
 // Insertion
 for($i=1 ;$i <= $nb_lignes; $i++) {
@@ -1566,12 +1708,13 @@ for($i=1 ;$i <= $nb_lignes; $i++) {
 	insert into wm_commande (login_site, num_commande, id_fournisseur, produit, quantite, prix_ht, commission, flag_ok)
 	values ('$login', $id_commande, $v_id_fournisseur, '$v_produit', $v_quantite, $v_prix_ht, $v_divers, '$flag_ok')";
 	
-	$tab = mysql_query($req_ins_sql) or die('<br> Erreur sql f_modification_commande - 3');
+	$statement = $pdo_instance->prepare($req_del_sql);
+
+	$tab =  $statement->execute() or die('<br> Erreur sql f_modification_commande - 3');
 
 	}
 }
 
-include('inc/end_connexion.php');
 
 // GESTION DE LA TABLE wm_commande_plv
 
@@ -1582,7 +1725,10 @@ f_supprime_plv($login, $id_commande);
 // Creation des PLV
 f_ajoute_plv($login, $id_commande);
 
-include('inc/start_connexion.php');
+//include('inc/start_connexion.php');
+
+
+$pdo_instance = SPDO::getInstance();
 
 // Modification du PLV
 for($i=1 ;$i <= $nb_fournisseurs; $i++) {
@@ -1596,12 +1742,11 @@ for($i=1 ;$i <= $nb_fournisseurs; $i++) {
 	where	login_site		= '$login'
 	and		num_plv			= $v_num_plv
 	and		num_commande	= $id_commande";
-	
-	$tab = mysql_query($req_upd_sql) or die('<br> Erreur sql f_modification_commande - 4');
+	$statement = $pdo_instance->prepare($req_upd_sql);
+	$statement->execute() or  die('<br> Erreur sql f_modification_commande - 4');
 	
 }
 
-include('inc/end_connexion.php');
 }
 
 }
@@ -1609,7 +1754,7 @@ include('inc/end_connexion.php');
 // Cette fonction retourne l'id d'une commande en fonction de son num_plv
 function f_retourne_id_commande ($login, $num_plv) {
 
-include('inc/start_connexion.php');
+//include('inc/start_connexion.php');
 
 // Recuperation de l id du client en fonction de son nom
 $req_sql = "
@@ -1618,8 +1763,14 @@ from	wm_commande_plv
 where	login_site		= '$login'
 and		num_plv			= $num_plv";
 
-$res_sql = mysql_query($req_sql) or die('<br> Erreur sql f_retourne_id_commande');
-$tab_res = mysql_fetch_array($res_sql);
+
+$pdo_instance = SPDO::getInstance();
+$statement = $pdo_instance->prepare($req_sql);
+$statement->bindParam('num_plv', $num_plv, PDO::PARAM_INT);
+$statement->bindParam('login', $login, PDO::PARAM_STR);
+
+$statement->execute() or die('');
+$tab_res = $statement->fetch(PDO::FETCH_ASSOC);
 
 if ($tab_res['num_commande'] > 0) {
 	return $tab_res['num_commande'];
@@ -1628,29 +1779,32 @@ else {
 	return 0;
 }
 
-include('inc/end_connexion.php');
 
 }
 
 // Cette fonction retourne l'id du tiers en fonction de son nom et de son login
 function f_retourne_id_tiers ($login, $nom_tiers) {
 
-include('inc/start_connexion.php');
+//include('inc/start_connexion.php');
 
 // Recuperation de l id du client en fonction de son nom
 $req_sql = "
 select	max(num_tiers) num_tiers
 from	wm_ref_tiers 
-where	nom_tiers_code	= '$nom_tiers'
-and		login_site		= '$login'
+where	nom_tiers_code	= :nom_tiers
+and		login_site		= :login
 and		nom_tiers		is not null 
 and		nom_tiers		!= 'A RENSEIGNER'
 and		tiers_visible	= 'O'";
 
 //echo '<br><br>' .$req_sql. '<br><br>';
 
-$res_sql = mysql_query($req_sql) or die('<br> Erreur sql f_retourne_id_tiers');
-$tab_res = mysql_fetch_array($res_sql);
+$pdo_instance = SPDO::getInstance();
+$statement = $pdo_instance->prepare($req_sql);
+$statement->execute(['login' => $login, 'nom_tiers'=> $nom_tiers]);
+$tab_res = $statement->fetch(PDO::FETCH_NUM);
+
+
 
 if ($tab_res['num_tiers'] > 0) {
 	return $tab_res['num_tiers'];
@@ -1659,14 +1813,14 @@ else {
 	return 0;
 }
 
-include('inc/end_connexion.php');
+//include('inc/end_connexion.php');
 
 }
 
 // fonction qui recupere les infos d une commande cote client ----------------------------------------------
 function f_affiche_commande_client_1($login, $id_commande) {
 
-include('inc/start_connexion.php');
+//include('inc/start_connexion.php');
 
 $req_sql ="
 select	num_commande,
@@ -1682,43 +1836,56 @@ select	num_commande,
 		livraison_adr_flag,
 		livraison_adr
 from    wm_client_commande
-where   login_site		= '$login'
-and		num_commande	= $id_commande";
+where   login_site		= :login
+and		num_commande	= :id_commande";
 
-$res_sql = mysql_query ($req_sql) or die('<br> Erreur sql f_affiche_commande_client_1 ');
-$tab_res = mysql_fetch_array($res_sql);
+$pdo_instance = SPDO::getInstance();
+  $statement = $pdo_instance->prepare($req_sql);
+  $statement->bindParam("login", $login, PDO::PARAM_STR);
+  $statement->bindParam("id_commande", $id_commande, PDO::PARAM_INT);
+
+  $statement->execute() or die('<br> Erreur sql f_affiche_commande_client_1');
+
+
+$tab_res = $statement->fetch(PDO::FETCH_NUM);
 return $tab_res;
 
-include('inc/end_connexion.php');
+//include('inc/end_connexion.php');
 
 }
 
 // fonction qui recupere les infos d une commande cote client ----------------------------------------------
 function f_affiche_commande_client_2($login, $id_commande) {
 
-include('inc/start_connexion.php');
+//include('inc/start_connexion.php');
 
 $req_sql ="
 select	c.nom_tiers_code nom_client
 from    wm_client_commande  cc,
 		wm_ref_tiers		c
-where   cc.login_site       = '$login'
-and		cc.num_commande		= $id_commande
+where   cc.login_site       = :login
+and		cc.num_commande		= :id_commande
 and     cc.num_tiers        = c.num_tiers
 and     cc.login_site		= c.login_site";
 
-$res_sql = mysql_query ($req_sql) or die('<br> Erreur sql f_affiche_commande_client_2 ');
-$tab_res = mysql_fetch_array($res_sql);
-return $tab_res;
 
-include('inc/end_connexion.php');
+  $pdo_instance = SPDO::getInstance();
+  $statement = $pdo_instance->prepare($req_sql);
+  $statement->bindParam("login", $login, PDO::PARAM_STR);
+  $statement->bindParam("id_commande", $id_commande, PDO::PARAM_INT);
+  
+  $statement->execute() or die('<br> Erreur sql f_affiche_commande_client_2 ');
+  $ligne = $statement->fetch(PDO::FETCH_NUM);
+return $ligne;
+
+//include('inc/end_connexion.php');
 
 }
 
 // fonction qui recupere les infos d une commande cote commande ----------------------------------------------
 function f_affiche_commande_client_3($login, $id_commande) {
 
-include('inc/start_connexion.php');
+//include('inc/start_connexion.php');
 
 $req_sql ="
 select	f.nom_tiers_code			nom_fournisseur,
@@ -1728,55 +1895,74 @@ select	f.nom_tiers_code			nom_fournisseur,
 		c.commission		divers
 from    wm_commande			c,
 		wm_ref_tiers		f
-where   c.login_site       = '$login'
-and		c.num_commande		= $id_commande
+where   c.login_site       = :login
+and		c.num_commande		= :id_commande
 and     c.id_fournisseur    = f.num_tiers
 and     c.login_site		= f.login_site
 order by f.nom_tiers_code, produit";
+$pdo_instance = SPDO::getInstance();
+  $statement = $pdo_instance->prepare($req_sql);
+  $statement->bindParam("login", $login, PDO::PARAM_STR);
+  $statement->bindParam("id_commande", $id_commande, PDO::PARAM_INT);
+  
+  $statement->execute() or die('<br> Erreur sql f_affiche_commande_client_3 ');
+  $ligne = $statement->fetch(PDO::FETCH_NUM);
 
-$res_sql = mysql_query ($req_sql) or die('<br> Erreur sql f_affiche_commande_client_3 ');
-$tab_res = mysql_fetch_array($res_sql);
-return $tab_res;
+return $ligne;
 
-include('inc/end_connexion.php');
+//include('inc/end_connexion.php');
 
 }
 
 // fonction qui annule 1 commande ----------------------------------------------
 function f_annuler_commande($login, $num_commande) {
 
-include('inc/start_connexion.php');
+//include('inc/start_connexion.php');
 
 $req_upd_sql ="
 update	wm_client_commande
 set		etat_commande		= 'A',
 		date_modification	= CURRENT_TIMESTAMP,
 		commande_visible	= 'N'
-where	login_site		= '$login'
-and		num_commande	= $num_commande";
-		
-$tab = mysql_query($req_upd_sql) or die('<br> Erreur sql f_annuler_commande');
+where	login_site		= :login
+and		num_commande	= :num_commande";
 
-include('inc/end_connexion.php');
+
+
+$pdo_instance = SPDO::getInstance();
+$statement = $pdo_instance->prepare($req_upd_sql);
+$statement->bindParam('login', $login, PDO::PARAM_STR);
+$statement->bindParam('num_commande', $num_commande, PDO::PARAM_INT); 
+
+$tab = $statement->execute() or die('<br> Erreur sql f_annuler_commande');
+
+//include('inc/end_connexion.php');
 
 }
 
 // fonction qui valide 1 devis ----------------------------------------------
 function f_valider_devis($login, $num_commande) {
 
-include('inc/start_connexion.php');
+//include('inc/start_connexion.php');
 
 $req_upd_sql ="
 update	wm_client_commande
 set		etat_commande		= 'E',
 		date_modification	= CURRENT_TIMESTAMP,
 		type_commande		= 'C'
-where	login_site			= '$login'
-and		num_commande		= $num_commande";
+where	login_site			= :login
+and		num_commande		= :num_commande";
 		
-$tab = mysql_query($req_upd_sql) or die('<br> Erreur sql f_valider_devis');
 
-include('inc/end_connexion.php');
+
+$pdo_instance = SPDO::getInstance();
+$statement = $pdo_instance->prepare($req_upd_sql);
+$statement->bindParam('login', $login, PDO::PARAM_STR);
+$statement->bindParam('num_commande', $num_commande, PDO::PARAM_INT); 
+
+$tab = $statement->execute() or die('<br> Erreur sql f_valider_devis');
+
+//include('inc/end_connexion.php');
 
 }
 
@@ -1788,17 +1974,22 @@ $result = 0;
 // Calcul du nb de lignes PLV
 $nb_lignes_plv = f_calcul_nb_plv_commande($num_commande, $login);
 
-include('inc/start_connexion.php');
+//include('inc/start_connexion.php');
 
 // TEST que tout est ok dans la table wm_client_commande
 $req_sql ="
 select	sum(case flag_ok when 'O' then 0 else 1 end) flag_ok
 from	wm_client_commande
-where	login_site		= '$login'
-and 	num_commande	= $num_commande";
+where	login_site		= :login
+and 	num_commande	= :num_commande";
 
-$res_sql = mysql_query ($req_sql) or die('<br> Erreur sql f_test_commande_ok - 1 ');
-$ligne = mysql_fetch_row($res_sql);
+$pdo_instance = SPDO::getInstance();
+  $statement = $pdo_instance->prepare($req_sql);
+  $statement->bindParam("num_commande", $num_commande, PDO::PARAM_INT);
+
+  $statement->bindParam("login", $login, PDO::PARAM_STR);
+  $statement->execute() or die('<br> Erreur sql f_test_commande_ok - 1 ');
+  $ligne = $statement->fetch(PDO::FETCH_NUM);
 
 $result = $ligne [0];
 
@@ -1806,11 +1997,16 @@ $result = $ligne [0];
 $req_sql ="
 select	sum(case flag_ok when 'O' then 0 else 1 end) flag_ok
 from	wm_commande
-where	login_site		= '$login'
-and 	num_commande	= $num_commande";
+where	login_site		= :login
+and 	num_commande	= :num_commande";
 
-$res_sql = mysql_query ($req_sql) or die('<br> Erreur sql f_test_commande_ok - 2 ');
-$ligne = mysql_fetch_row($res_sql);
+$statement = $pdo_instance->prepare($req_sql);
+
+$statement->bindParam("num_commande", $num_commande, PDO::PARAM_INT);
+
+  $statement->bindParam("login", $login, PDO::PARAM_STR);
+  $statement->execute() or die('<br> Erreur sql f_test_commande_ok - 2 ');
+  $ligne = $statement->fetch(PDO::FETCH_NUM);
 
 $result = $result + $ligne [0];
 
@@ -1818,12 +2014,20 @@ $result = $result + $ligne [0];
 $req_sql = "
 select	ifnull(count(distinct num_plv), 0) nb_lignes
 from	wm_commande_plv
-where	login_site		= '$login'
-and		num_commande	= $num_commande
+where	login_site		= :login
+and		num_commande	= :num_commande
 and		etat			= 'A'";
 
-$res_sql = mysql_query ($req_sql) or die('<br> Erreur sql f_test_commande_ok - 3 ');
-$ligne = mysql_fetch_row($res_sql);
+$statement = $pdo_instance->prepare($req_sql);
+
+$statement->bindParam("num_commande", $num_commande, PDO::PARAM_INT);
+
+  $statement->bindParam("login", $login, PDO::PARAM_STR);
+  $statement->execute() or die('<br> Erreur sql f_test_commande_ok - 3 ');
+  $ligne = $statement->fetch(PDO::FETCH_NUM);
+
+
+
 
 // Il faut que le nb de fournisseurs soit egal au nb de plv et qu'au moins une ligne dans PLV existe
 if ($ligne [0] != $nb_lignes_plv or $nb_lignes_plv == 0) {
@@ -1833,42 +2037,48 @@ $result = $result + 1;
 // Si retourne 0 alors tout est ok, sinon il manque des infos
 return $result;
 
-include('inc/end_connexion.php');
+//include('inc/end_connexion.php');
 
 }
 
 // fonction qui supprime les donnees PLV qui n'ont plus lieu d'exister --------------
 function f_supprime_plv($login, $num_commande) {
 
-include('inc/start_connexion.php');
+//include('inc/start_connexion.php');
 
 $req_del_sql ="
 delete from	wm_commande_plv
-where		num_commande	= $num_commande
-and			login_site		= '$login'
+where		num_commande	= :num_commande
+and			login_site		= :login
 and			etat			= 'A'
 and			id_fournisseur	not in (	select distinct id_fournisseur 
 										from			wm_commande
-										where			num_commande	= $num_commande
-										and				login_site		= '$login'
+										where			num_commande	= :num_commande
+										and				login_site		= :login
 										and				flag_ok			= 'O')";
-	
-$tab = mysql_query($req_del_sql) or die('<br> Erreur sql f_supprime_plv');
 
-include('inc/end_connexion.php');
+
+
+$pdo_instance = SPDO::getInstance();
+$statement = $pdo_instance->prepare($req_del_sql);
+$statement->bindParam('login', $login, PDO::PARAM_STR);
+$statement->bindParam('num_commande', $num_commande, PDO::PARAM_INT); 
+
+$tab = $statement->execute()  or die('<br> Erreur sql f_supprime_plv');
+
 
 }
 
 // fonction qui ajoute les donnees PLV ---------------------------------
 function f_ajoute_plv($login, $num_commande) {
 
-include('inc/start_connexion.php');
+//include('inc/start_connexion.php');
 
 $req_ins_sql ="
 insert into wm_commande_plv (
 login_site, num_commande, id_fournisseur, plv, etat, date_insertion, date_modification)
-select distinct	'$login', 
-				$num_commande,
+select distinct	:login, 
+				:num_commande,
 				id_fournisseur,
 				'',
 				'A',
@@ -1876,27 +2086,33 @@ select distinct	'$login',
 				CURRENT_TIMESTAMP
 from			wm_commande			c,
 				wm_client_commande	cc
-where			c.num_commande		= $num_commande
-and				c.login_site		= '$login'
+where			c.num_commande		= :num_commande
+and				c.login_site		= :login
 and				c.login_site		= cc.login_site
 and				c.num_commande		= cc.num_commande
 and				cc.etat_commande	= 'E'
 and				cc.commande_visible	= 'O'
 and				c.id_fournisseur	not in (	select distinct id_fournisseur 
 												from			wm_commande_plv 
-												where			num_commande	= $num_commande
-												and				login_site		= '$login')";
+												where			num_commande	= :num_commande
+												and				login_site		= :login)";
 	
-$tab = mysql_query($req_ins_sql) or die('<br> Erreur sql f_ajoute_plv');
 
-include('inc/end_connexion.php');
+$pdo_instance = SPDO::getInstance();
+$statement = $pdo_instance->prepare($req_ins_sql);
+$statement->bindParam('login', $login, PDO::PARAM_STR);
+$statement->bindParam('num_commande', $num_commande, PDO::PARAM_INT); 
+												
+$tab = $statement->execute()  or die('<br> Erreur sql f_ajoute_plv');
+
+//include('inc/end_connexion.php');
 
 }
 
 // Fonction qui affiche les donnees plv pour une commande
 function f_affiche_plv($login, $num_commande, $color_title) {
 
-include('inc/start_connexion.php');
+//include('inc/start_connexion.php');
 
 $req_sql ="
 select	p.num_plv,
@@ -1906,8 +2122,8 @@ select	p.num_plv,
 		p.date_envoi
 from	wm_commande_plv	p,
 		wm_ref_tiers	f
-where	p.num_commande		= $num_commande
-and		p.login_site		= '$login'
+where	p.num_commande		= :num_commande
+and		p.login_site		= :login
 and		p.login_site		= f.login_site
 and		p.id_fournisseur	= f.num_tiers";
 
@@ -1925,9 +2141,15 @@ echo '<td align=center bgcolor='.$color_title.' width=10%> PDF </td>';
 echo '<td align=center bgcolor='.$color_title.' width=10%> Date envoi </td>';
 echo '</tr>';
 
-$res_sql = mysql_query ($req_sql) or die('<br> Erreur sql f_affiche_plv');
 
-while ($ligne = mysql_fetch_row($res_sql)) {
+$pdo_instance = SPDO::getInstance();
+  $statement = $pdo_instance->prepare($req_sql);
+  $statement->bindParam('login', $login, PDO::PARAM_STR);
+
+  $statement->bindParam('num_commande', $num_commande, PDO::PARAM_STR);
+  $statement->execute() or die('<br> Erreur sql f_affiche_plv');
+
+while ($ligne = $statement->fetch(PDO::FETCH_NUM)) {
 	
 	$i=$i+1;
 	
@@ -1964,7 +2186,6 @@ while ($ligne = mysql_fetch_row($res_sql)) {
 echo '</table>';
 echo '<br>';
 
-include('inc/end_connexion.php');
 
 
 }
@@ -1975,36 +2196,44 @@ function f_calcul_nb_plv_commande ($num_commande, $login) {
 $req_sql = "
 select	ifnull(count(distinct id_fournisseur), 0) nb_lignes
 from	wm_commande
-where	login_site		= '$login'
-and		num_commande	= $num_commande
+where	login_site		= :login
+and		num_commande	= :num_commande
 and		flag_ok			= 'O'";
 
-include('inc/start_connexion.php');
+//include('inc/start_connexion.php');
 
-$res_sql = mysql_query ($req_sql) or die('<br> Erreur sql f_calcul_nb_plv_commande');
-$ligne = mysql_fetch_array($res_sql);
+$pdo_instance = SPDO::getInstance();
+  $statement = $pdo_instance->prepare($req_sql);
+  $statement->bindParam("num_commande", $num_commande, PDO::PARAM_INT);
+
+  $statement->bindParam("login", $login, PDO::PARAM_STR);
+  $statement->execute();
+
+  $ligne = $statement->fetch(PDO::FETCH_NUM);
 return $ligne[0];
 
-include('inc/end_connexion.php');
+//include('inc/end_connexion.php');
 
 }
 
 // fonction qui Supprime les lignes non ok dans une commande ----------------------------------------------
 function f_epurer_commande($login, $num_commande) {
 
-include('inc/start_connexion.php');
+//include('inc/start_connexion.php');
 
 $req_del_sql ="
 delete	from wm_commande
-where	login_site		= '$login'
-and		num_commande	= $num_commande
+where	login_site		= :login
+and		num_commande	= :num_commande
 and		flag_ok			= 'N'";
 
-$tab = mysql_query($req_del_sql) or die('<br> Erreur sql f_epurer_commande');
+$pdo_instance = SPDO::getInstance();
+  $statement = $pdo_instance->prepare($req_del_sql);
+  $statement->bindParam('login', $login, PDO::PARAM_STR);
 
-include('inc/end_connexion.php');
+  $statement->bindParam('num_commande', $num_commande, PDO::PARAM_STR);
+  $statement->execute() or die('<br> Erreur sql f_epurer_commande');
 
-// GESTION DE LA TABLE wm_commande_plv
 $nb_fournisseurs = f_calcul_nb_plv_commande($num_commande, $login);
 
 // Suppression des fournisseurs qui n'existent plus
@@ -2018,16 +2247,21 @@ function f_calcul_etat_commande ($num_commande, $login) {
 $req_sql = "
 select	etat_commande
 from	wm_client_commande
-where	login_site		= '$login'
-and		num_commande	= $num_commande";
+where	login_site		= :login
+and		num_commande	= :num_commande";
 
-include('inc/start_connexion.php');
+//include('inc/start_connexion.php');
+$pdo_instance = SPDO::getInstance();
+  $statement = $pdo_instance->prepare($req_sql);
+  $statement->bindParam("login", $login, PDO::PARAM_STR);
+  $statement->bindParam("num_commande", $num_commande, PDO::PARAM_INT);
+  
 
-$res_sql = mysql_query ($req_sql) or die('<br> Erreur sql f_calcul_etat_commande');
-$ligne = mysql_fetch_array($res_sql);
+$statement->execute() or die('<br> Erreur sql f_calcul_etat_commande');
+$ligne = $statement->fetch(PDO::FETCH_NUM);
 return $ligne[0];
 
-include('inc/end_connexion.php');
+//include('inc/end_connexion.php');
 
 }
 
@@ -2063,15 +2297,19 @@ select	cc.num_tiers,
 		c.mail_contact_2
 from	wm_client_commande	cc,
 		wm_ref_tiers		c
-where	cc.login_site		= '$login'
-and		cc.num_commande		= $num_commande
+where	cc.login_site		= :login
+and		cc.num_commande		= :num_commande
 and		cc.login_site		= c.login_site
 and		cc.num_tiers		= c.num_tiers";
 
-include('inc/start_connexion.php');
 
-$res_sql = mysql_query ($req_sql) or die('<br> Erreur sql f_envoyer_commande_client - 1');
-$ligne = mysql_fetch_array($res_sql);
+  $pdo_instance = SPDO::getInstance();
+  $statement = $pdo_instance->prepare($req_sql);
+  $statement->bindParam("login", $login, PDO::PARAM_STR);
+  $statement->bindParam("num_commande", $num_commande, PDO::PARAM_INT);
+ 
+  $statement->execute() or die('<br> Erreur sql f_envoyer_commande_client - 1');
+  $ligne =  $statement->fetch(PDO::FETCH_NUM);
 
 $num_tiers				= $ligne[0];
 $commande_date			= $ligne[1];
@@ -2094,8 +2332,9 @@ $adr_livraison_cp		= $ligne[17];
 $adr_livraison_ville	= $ligne[18];
 $mail_contact_2			= $ligne[19];
 
+//$sujet="$cpt_nom_tiers commande - $num_commande";
 
-$sujet="$cpt_nom_tiers commande - $num_commande";
+$sujet="$nom_tiers commande - $num_commande";
 
 // Recuperation des informations du compte
 $req_sql = "
@@ -2114,10 +2353,13 @@ select	nom,
 		ifnull(e_mail_1, '') e_mail_1,
 		ifnull(e_mail_2, '') e_mail_2
 from	ref_comptes
-where	login = '$login'";
+where	login = :login";
 
-$res_sql = mysql_query ($req_sql) or die('<br> Erreur sql f_envoyer_commande_client - 2');
-$ligne = mysql_fetch_array($res_sql);
+
+$pdo_instance = SPDO::getInstance();
+  $statement = $pdo_instance->prepare($req_sql);
+  $statement->execute(['login' => $login]) or die('<br> Erreur sql f_envoyer_commande_client - 2');
+  $ligne = $statement->fetch(PDO::FETCH_NUM);
 
 $cpt_nom			= $ligne[0];
 $cpt_prenom			= $ligne[1];
@@ -2221,8 +2463,8 @@ select	f.nom_tiers,
 		p.plv
 from	wm_commande_plv	p,
 		wm_ref_tiers	f
-where	p.num_commande		= $num_commande
-and		p.login_site		= '$login'
+where	p.num_commande		= :num_commande
+and		p.login_site		= :login
 and		p.login_site		= f.login_site
 and		p.id_fournisseur	= f.num_tiers";
 
@@ -2233,9 +2475,15 @@ $contenu_plv = "
 <td align=center bgcolor=$color_title width=60%> PLV </td>
 </tr>";
 
-$res_sql = mysql_query ($req_sql) or die('<br> Erreur sql f_envoyer_commande_client - 3');
 
-while ($ligne = mysql_fetch_row($res_sql)) {
+$pdo_instance = SPDO::getInstance();
+  $statement = $pdo_instance->prepare($req_sql);
+  $statement->bindParam('num_commande', $num_commande, PDO::PARAM_INT);
+  $statement->bindParam('login', $login, PDO::PARAM_STR);
+   
+  $statement->execute();
+
+while ($ligne = $statement->fetch(PDO::FETCH_NUM)) {
 	for ($j = 0; $j < count($ligne); $j++) {
 		$v_nom_tiers	= $ligne[0];
 		$v_plv			= $ligne[1];
@@ -2253,8 +2501,8 @@ select	f.nom_tiers,
 		round(c.quantite * c.prix_ht,2) total_ligne_ht
 from	wm_commande		c,
 		wm_ref_tiers	f
-where	c.num_commande		= $num_commande
-and		c.login_site		= '$login'
+where	c.num_commande		= :num_commande
+and		c.login_site		= :login
 and		c.login_site		= f.login_site
 and		c.id_fournisseur	= f.num_tiers";
 
@@ -2269,9 +2517,14 @@ $contenu_commande = "
 </tr>";
 
 $total_facture_ht = 0;
-$res_sql = mysql_query ($req_sql) or die('<br> Erreur sql f_envoyer_commande_client - 3');
 
-while ($ligne = mysql_fetch_row($res_sql)) {
+
+$statement = $pdo_instance->prepare($req_sql);
+$statement->bindParam("num_commande", $num_commande, PDO::PARAM_INT);
+$statement->bindParam("login", $login, PDO::PARAM_STR);
+$statement->execute() or die('<br> Erreur sql f_envoyer_commande_client - 3');
+
+while ($ligne = $statement->fetch(PDO::FETCH_NUM)) {
 
 	for ($j = 0; $j < count($ligne); $j++) {
 		$v_fournisseur	= $ligne[0];
@@ -2296,7 +2549,7 @@ $contenu_commande = $contenu_commande . "
 <td bgcolor=$color_title align=right> $total_facture_ht </td>
 </table><br><br>";
 
-include('inc/end_connexion.php');
+//include('inc/end_connexion.php');
 
 $pied_de_page = f_retourne_pied_de_mail($login);
 
@@ -2323,13 +2576,16 @@ if (mail($destinataire,$sujet,$contenu_mail,$headers)) {
 	update	wm_client_commande
 	set		date_envoi				= CURRENT_TIMESTAMP,
 			date_modification		= CURRENT_TIMESTAMP
-	where	num_commande			= $num_commande
-	and		login_site				= '$login'";
+	where	num_commande			= :num_commande
+	and		login_site				= :login";
 
-	include('inc/start_connexion.php');
-	$tab = mysql_query($req_sql) or die('<br> Erreur sql f_envoyer_commande_client - 4');
-	include('inc/end_connexion.php');
 	
+	$pdo_instance = SPDO::getInstance();
+	$statement = $pdo_instance->prepare($req_sql);
+	$statement->bindParam("num_commande", $num_commande, PDO::PARAM_INT);
+	$statement->bindParam("login", $login, PDO::PARAM_STR);
+
+	$statement->execute() or die('<br> Erreur sql f_envoyer_commande_client - 4');
 	return 0;
 }
 else {
@@ -2388,18 +2644,25 @@ from	wm_client_commande	cc,
 		wm_ref_tiers		c,
 		wm_commande_plv		p,
 		wm_ref_tiers		f
-where	cc.login_site		= '$login'
+where	cc.login_site		= :login
 and		cc.login_site		= c.login_site
 and		cc.login_site		= p.login_site
 and		cc.num_tiers		= c.num_tiers
 and		cc.num_commande		= p.num_commande
-and		p.num_plv			= $num_plv
+and		p.num_plv			= :num_plv
 and		p.id_fournisseur	= f.num_tiers";
 
-include('inc/start_connexion.php');
 
-$res_sql = mysql_query ($req_sql) or die('<br> Erreur sql f_envoi_plv - 1');
-$ligne = mysql_fetch_array($res_sql);
+
+$pdo_instance = SPDO::getInstance();
+  $statement = $pdo_instance->prepare($req_sql);
+$statement->bindParam('login', $login, PDO::PARAM_STR);
+
+$statement->bindParam('num_plv', $num_plv, PDO::PARAM_INT);
+  $statement->execute() or die('<br> Erreur sql f_envoi_plv - 1');
+
+$ligne = $statement->fetch(PDO::FETCH_NUM);
+
 
 $num_tiers				= $ligne[0];
 $commande_date			= $ligne[1];
@@ -2452,10 +2715,15 @@ select	nom,
 		ifnull(e_mail_1, '') e_mail_1,
 		ifnull(e_mail_2, '') e_mail_2
 from	ref_comptes
-where	login = '$login'";
+where	login = :login";
 
-$res_sql = mysql_query ($req_sql) or die('<br> Erreur sql f_envoi_plv - 2');
-$ligne = mysql_fetch_array($res_sql);
+
+
+$pdo_instance = SPDO::getInstance();
+$statement = $pdo_instance->prepare($req_sql);
+$statement->execute(['login' => $login])or die('<br> Erreur sql f_envoi_plv - 2');
+ 
+$ligne = $statement->fetch(PDO::FETCH_NUM);
 
 $cpt_nom			= $ligne[0];
 $cpt_prenom			= $ligne[1];
@@ -2628,14 +2896,20 @@ select	f.nom_tiers,
 		p.plv
 from	wm_commande_plv	p,
 		wm_ref_tiers	f
-where	p.num_plv			= $num_plv
-and		p.login_site		= '$login'
+where	p.num_plv			= :num_plv
+and		p.login_site		= :login
 and		p.login_site		= f.login_site
 and		p.id_fournisseur	= f.num_tiers";
 
-$res_sql = mysql_query ($req_sql) or die('<br> Erreur sql f_envoyer_commande_client - 3');
 
-while ($ligne = mysql_fetch_row($res_sql)) {
+
+  $pdo_instance = SPDO::getInstance();
+  $statement = $pdo_instance->prepare($req_sql);
+  $statement->bindParam('login', $login, PDO::PARAM_STR);
+  $statement->bindParam('num_plv', $num_plv, PDO::PARAM_INT);
+  $statement->execute() or die('<br> Erreur sql f_envoyer_commande_client - 3');
+
+while ($ligne = $statement->fetch(PDO::FETCH_NUM)) {
 	for ($j = 0; $j < count($ligne); $j++) {
 		$v_nom_tiers	= $ligne[0];
 		$v_plv			= $ligne[1];
@@ -2668,20 +2942,24 @@ select	f.nom_tiers,
 from	wm_commande		c,
 		wm_ref_tiers	f,
 		wm_commande_plv	p
-where	p.num_plv			= $num_plv
+where	p.num_plv			= :num_plv
 and		p.num_commande		= c.num_commande
-and		p.login_site		= '$login'
+and		p.login_site		= :login
 and		p.login_site		= c.login_site
 and		c.login_site		= f.login_site
 and		c.id_fournisseur	= f.num_tiers
 and		p.id_fournisseur	= c.id_fournisseur";
 
-$res_sql = mysql_query ($req_sql) or die('<br> Erreur sql f_envoi_plv - 3');
+$statement = $pdo_instance->prepare($req_sql);
+  $statement->bindParam('login', $login, PDO::PARAM_STR);
+  $statement->bindParam('num_plv', $num_plv, PDO::PARAM_INT);
+  $statement->execute() or die('<br> Erreur sql f_envoi_plv - 3');
+
 
 $total_facture_ht	= 0;
 $total_facture_com	= 0;
 
-while ($ligne = mysql_fetch_row($res_sql)) {
+while ($ligne = $statement->fetch(PDO::FETCH_NUM)) {
 
 	for ($j = 0; $j < count($ligne); $j++) {
 		$v_produit				= $ligne[1];
@@ -2716,7 +2994,7 @@ $contenu_commande = $contenu_commande . "
 </tr>
 </table><br><br>";
 
-include('inc/end_connexion.php');
+//include('inc/end_connexion.php');
 
 if ($flag_envoi_pdf == 'O') { 
 	$contenu_mail =  $contenu_mail . $contenu_plv . $contenu_commande;
@@ -2818,33 +3096,51 @@ if ( mail('contact@winemanager.fr',$sujet,$contenu_mail,$headers) ) {
 	update	wm_commande_plv
 	set		date_envoi				= CURRENT_TIMESTAMP,
 			date_modification		= CURRENT_TIMESTAMP
-	where	num_plv					= $num_plv
-	and		login_site				= '$login'";
+	where	num_plv					= :num_plv
+	and		login_site				= :login";
 
-	include('inc/start_connexion.php');
+	//include('inc/start_connexion.php');
 	
-	$tab = mysql_query($req_sql) or die('<br> Erreur sql f_envoi_plv - 4');
+$pdo_instance = SPDO::getInstance();
+$statement = $pdo_instance->prepare($req_sql);
+$statement->bindParam("num_plv", $num_plv, PDO::PARAM_INT);
+
+$statement->bindParam("login", $login, PDO::PARAM_STR);
+$statement->execute() or die('<br> Erreur sql f_envoi_plv - 4');
 
 	// Modification du statut de la commande
 	$req_sql ="
 	select	count(distinct num_plv) nb_plv
 	from	wm_commande_plv
-	where	num_commande			= $num_commande
-	and		login_site				= '$login'";
+	where	num_commande			= :num_commande
+	and		login_site				= :login";
+	$statement = $pdo_instance->prepare($req_sql);
+	$statement->bindParam("num_commande", $num_commande, PDO::PARAM_INT);
 
-	$res_sql = mysql_query ($req_sql) or die('<br> Erreur sql f_envoi_plv - 5');
-	$ligne = mysql_fetch_array($res_sql);
+	$statement->bindParam("login", $login, PDO::PARAM_STR);
+	
+	$statement->execute() or die('<br> Erreur sql f_envoi_plv - 5');
+	
+	$ligne = $statement->fetch(PDO::FETCH_NUM);
+
 	$nb_plv = $ligne[0];
 
 	$req_sql ="
 	select	count(distinct num_plv) nb_plv
 	from	wm_commande_plv
-	where	num_commande			= $num_commande
-	and		login_site				= '$login'
+	where	num_commande			= :num_commande
+	and		login_site				= :login
 	and		date_envoi				is not null";
 
-	$res_sql = mysql_query ($req_sql) or die('<br> Erreur sql f_envoi_plv - 6');
-	$ligne = mysql_fetch_array($res_sql);
+	$statement = $pdo_instance->prepare($req_sql);
+	$statement->bindParam("num_commande", $num_commande, PDO::PARAM_INT);
+
+	$statement->bindParam("login", $login, PDO::PARAM_STR);
+	
+	$statement->execute() or die('<br> Erreur sql f_envoi_plv - 6');
+	
+	$ligne = $statement->fetch(PDO::FETCH_NUM);
+
 	$nb_plv_envoye = $ligne[0];
 
 	if ($nb_plv_envoye == $nb_plv) {
@@ -2853,15 +3149,18 @@ if ( mail('contact@winemanager.fr',$sujet,$contenu_mail,$headers) ) {
 		update	wm_client_commande
 		set		date_modification		= CURRENT_TIMESTAMP,
 				etat_commande			= 'T'
-		where	num_commande			= $num_commande
-		and		login_site				= '$login'";
+		where	num_commande			= :num_commande
+		and		login_site				= :login";
 
-		$tab = mysql_query($req_sql) or die('<br> Erreur sql f_envoi_plv - 7');
+		$statement = $pdo_instance->prepare($req_sql);
+		$statement->bindParam("num_commande", $num_commande, PDO::PARAM_INT);
+	
+		$statement->bindParam("login", $login, PDO::PARAM_STR);
+		
+		$statement->execute() or die('<br> Erreur sql f_envoi_plv - 7');
 
 	}
-	
-	include('inc/end_connexion.php');
-	
+		
 	return 0;
 }
 else {
@@ -2876,17 +3175,23 @@ function f_calcul_montant_ht_commande ($num_commande, $login) {
 $req_sql = "
 select	round(sum(ifnull(quantite*prix_ht,0)),2) total_facture
 from	wm_commande
-where	login_site		= '$login'
-and		num_commande	= $num_commande
+where	login_site		= :login
+and		num_commande	= :num_commande
 and		flag_ok			= 'O'";
 
-include('inc/start_connexion.php');
+//include('inc/start_connexion.php');
 
-$res_sql = mysql_query ($req_sql) or die('<br> Erreur sql f_calcul_montant_ht_commande');
-$ligne = mysql_fetch_array($res_sql);
+$pdo_instance = SPDO::getInstance();
+  $statement = $pdo_instance->prepare($req_sql);
+  $statement->bindParam("num_commande", $num_commande, PDO::PARAM_INT);
+  $statement->bindParam("login", $login, PDO::PARAM_STR);
+
+  $statement->execute() or die('<br> Erreur sql f_calcul_montant_ht_commande');
+
+	
+$ligne = $statement->fetch(PDO::FETCH_NUM);
 return $ligne[0];
 
-include('inc/end_connexion.php');
 
 }
 
@@ -2896,16 +3201,24 @@ function f_calcul_date_envoi_commande ($num_commande, $login) {
 $req_sql = "
 select	ifnull(date_envoi,'0000-00-00 00:00:00') date_envoi
 from	wm_client_commande
-where	login_site		= '$login'
-and		num_commande	= $num_commande";
+where	login_site		= :login
+and		num_commande	= :num_commande";
 
-include('inc/start_connexion.php');
+//include('inc/start_connexion.php');
 
-$res_sql = mysql_query ($req_sql) or die('<br> Erreur sql f_calcul_date_envoi_commande');
-$ligne = mysql_fetch_array($res_sql);
+$pdo_instance = SPDO::getInstance();
+  $statement = $pdo_instance->prepare($req_sql);
+  $statement->bindParam("num_commande", $num_commande, PDO::PARAM_INT);
+  $statement->bindParam("login", $login, PDO::PARAM_STR);
+
+  $statement->execute() or die('<br> Erreur sql f_calcul_date_envoi_commande');
+
+
+
+$ligne  = $statement->fetch(PDO::FETCH_NUM);
 return $ligne[0];
 
-include('inc/end_connexion.php');
+//include('inc/end_connexion.php');
 
 }
 
@@ -2928,8 +3241,8 @@ if ($flag_client_fournisseur == 'C') {
 			where	c.num_commande							= cc.num_commande
 			and		cc.etat_commande						= 'T'
 			and		c.login_site							= cc.login_site
-			and		c.login_site							= '$login'
-			and		date_format(cc.commande_date , '%Y' )	= $annee
+			and		c.login_site							= :login
+			and		date_format(cc.commande_date , '%Y' )	= :annee
 			group by date_format(cc.commande_date , '%Y' ), cc.num_tiers
 			order by 3 DESC) t
 	order by 1";
@@ -2951,20 +3264,22 @@ if ($flag_client_fournisseur == 'F') {
 			where	c.num_commande							= cc.num_commande
 			and		cc.etat_commande						= 'T'
 			and		c.login_site							= cc.login_site
-			and		c.login_site							= '$login'
-			and		date_format(cc.commande_date , '%Y' )	= $annee
+			and		c.login_site							= :login
+			and		date_format(cc.commande_date , '%Y' )	= :annee
 			group by date_format(cc.commande_date , '%Y' ), c.id_fournisseur
 			order by 3 DESC) t
 	order by 1";
 }
 
-include('inc/start_connexion.php');
+$pdo_instance = SPDO::getInstance();
+  $statement = $pdo_instance->prepare('SET @a := 0');
+  $statement->execute() or die('<br> Erreur sql f_calcul_stat_commande_client - 1');
 
-mysql_query ('SET @a := 0') or die('<br> Erreur sql f_calcul_stat_commande_client - 1');
+$statement = $pdo_instance->prepare($req_sql);
 
-$res_sql = mysql_query ($req_sql) or die('<br> Erreur sql f_calcul_stat_commande_client - 2');
+$res_sql = $statement->execute(['login' => $login, 'annee' => $annee]) or die('<br> Erreur sql f_calcul_stat_commande_client - 2');
 
-while ($ligne = mysql_fetch_row($res_sql)) {
+while ($ligne = $statement->fetch(PDO::FETCH_ASSOC)) {
 
 	for ($j = 0; $j < count($ligne); $j++) {
 		$v_rang					= $ligne[0];
@@ -2983,7 +3298,7 @@ while ($ligne = mysql_fetch_row($res_sql)) {
 	
 }
 
-include('inc/end_connexion.php');
+//include('inc/end_connexion.php');
 
 }
 
@@ -3135,9 +3450,12 @@ if ($flag_client_fournisseur == 'TM') { // GLOBAL
 	$order_query" ;
 }
 
-include('inc/start_connexion.php');
+//include('inc/start_connexion.php');
 
-$res_sql = mysql_query ($req_sql) or die('<br> Erreur sql f_affiche_stat_commande');
+
+$pdo_instance = SPDO::getInstance();
+$statement = $pdo_instance->prepare($req_sql);
+$res_sql =   $statement->execute() or die('<br> Erreur sql f_affiche_stat_commande');
 
 if ($flag_total == 'N') {
 // % du size du tableau
@@ -3167,14 +3485,14 @@ $tab_size[7]='0';
 if ($flag_total == 'N') { f_affiche_tableau($res_sql, $tab_size); }
 if ($flag_total == 'Y') { f_affiche_tableau_global($res_sql, $tab_size); }
 
-include('inc/end_connexion.php');
+//include('inc/end_connexion.php');
 
 }
 
 // fonction affiche la liste de tous les utilisateurs de l'application (admin only) ----------------------------------------------
 function f_affiche_liste_comptes ($login) {
 
-include('inc/start_connexion.php');
+//include('inc/start_connexion.php');
 
 if(isset($_GET['sens_req'])) { $sens_req=$_GET['sens_req']; } else { $sens_req='ASC'; }
 if(isset($_GET['id_col'])) { $id_col=$_GET['id_col']+1 ; } else { $id_col=1; }
@@ -3188,8 +3506,10 @@ from	ref_comptes
 where	login		= '$login' 
 and		flag_admin	= 'O'";
 
-$res_sql = mysql_query ($req_sql) or die('<br> Erreur sql f_affiche_liste_comptes - 1');
-$ligne = mysql_fetch_row($res_sql);
+$pdo_instance = SPDO::getInstance();
+$statement = $pdo_instance->prepare($req_sql);
+$statement->execute(['login' => $login]) or die('<br> Erreur sql f_affiche_liste_comptes - 1');
+$ligne = $statement->fetch(PDO::FETCH_NUM);
 
 $login_adm = $ligne [0];
 
@@ -3208,7 +3528,8 @@ select	r.login																'Compte',
 from	ref_comptes r
 $order_query" ;
 
-$res_sql = mysql_query ($req_sql) or die('<br> Erreur sql f_affiche_liste_comptes - 2');
+$statement = $pdo_instance->prepare($req_sql);
+$statement->execute() or die('<br> Erreur sql f_affiche_liste_comptes - 2');
 
 // % du size du tableau
 $tab_size[0]='11'; // Compte
@@ -3225,44 +3546,49 @@ f_affiche_tableau($res_sql, $tab_size);
 
 }
 
-include('inc/end_connexion.php');
+//include('inc/end_connexion.php');
 
 }
 
 // fonction qui modifie les dates de d�but et de fin d'un compte (admin only) ----------------------------------------------------
 function f_modification_compte_date ($login, $tab_mod) {
 
-include('inc/start_connexion.php');
+//include('inc/start_connexion.php');
 
 $dat_deb	= trim($tab_mod['v_dat_deb']);
 $dat_fin	= trim($tab_mod['v_dat_fin']);
 
 $req_sql ="
 update	ref_comptes
-set		begin_date	= '$dat_deb',
-		end_date	= '$dat_fin',
+set		begin_date	= :dat_deb,
+		end_date	= :dat_fin,
 		dat_upd		= CURRENT_TIMESTAMP
-where	login		= '$login'";
+where	login		= :login";
 
-$tab = mysql_query($req_sql) or die('<br> Erreur sql f_modification_compte_date');
+
+$pdo_instance = SPDO::getInstance();
+$statement = $pdo_instance->prepare($req_sql);
+$statement->execute(['login' => $login, 'dat_deb'=> $dat_deb, 'dat_fin' => $dat_fin]) or die('<br> Erreur sql f_modification_compte_date');
 		
-include('inc/end_connexion.php');
 
 }
 
 // fonction qui re-initialise un mot de passe pour un compte ou mail et envoi par mail un nouveau mot de passe -------------------
 function f_mot_de_passe_oublie ($login) {
 
-include('inc/start_connexion.php');
+//include('inc/start_connexion.php');
 
 $req_sql = " 
 select	login, e_mail
 from	ref_comptes 
-where	login		= '$login' 
-or		e_mail		= '$login'";
+where	login		= :login 
+or		e_mail		= :login";
 
-$res_sql = mysql_query ($req_sql) or die('<br> Erreur sql f_mot_de_passe_oublie - 1');
-$ligne = mysql_fetch_row($res_sql);
+$pdo_instance = SPDO::getInstance();
+$statement = $pdo_instance->prepare($req_sql);
+
+$statement->execute(['login' => $login]) or die('<br> Erreur sql f_mot_de_passe_oublie - 1');
+$ligne = $statement->fetch(PDO::FETCH_NUM);
 
 $login_ = $ligne [0];
 $mail_	= $ligne [1];
@@ -3274,11 +3600,15 @@ if ($login_ == $login) { // l'utilisateur est connu dans la base, on peut donc l
 
 	$req_sql ="
 	update	ref_comptes
-	set		mdp			= '$_new_passwd_md5',
+	set		mdp			= :new_passwd_md5,
 			dat_upd		= CURRENT_TIMESTAMP
-	where	login		= '$login_'";
+	where	login		= :login";
 
-	$tab = mysql_query($req_sql) or die('<br> Erreur sql f_mot_de_passe_oublie - 2');
+
+
+	$pdo_instance = SPDO::getInstance();
+	$statement = $pdo_instance->prepare($req_sql);
+	$statement->execute(['login' => $login_, 'new_passwd_md5' => $_new_passwd_md5]) or die('<br> Erreur sql f_mot_de_passe_oublie - 2');
 	
 	// Envoi du mail a l'utilisateur sur son compte.
 	
@@ -3317,7 +3647,7 @@ if ($login_ == $login) { // l'utilisateur est connu dans la base, on peut donc l
 	</td>
 	</tr></table>";
 	
-	include('inc/end_connexion.php');
+	//include('inc/end_connexion.php');
 
 	$contenu_mail = f_transforme_caractere_html($contenu_mail, 'html');
 	/*
@@ -3341,13 +3671,13 @@ else {
 		return "Votre compte n'existe pas.";
 }
 
-include('inc/end_connexion.php');
+//include('inc/end_connexion.php');
 }
 
 // Fonction qui affiche les commandes termin�es pour un fournisseur --------------------
 function f_affiche_liste_commande_fournisseurs ($num_client, $login) {
 
-include('inc/start_connexion.php');
+//include('inc/start_connexion.php');
 
 if(isset($_GET['sens_req'])) { $sens_req=$_GET['sens_req']; } else { $sens_req='DESC'; }
 
@@ -3360,11 +3690,19 @@ $order_query='order by ' . $id_col . ' ' . $sens_req;
 $req_sql = "
 select    nom_tiers, flag_fournisseur_client
 from    wm_ref_tiers       t
-where    login_site    = '$login'
-and        num_tiers     = $num_client";
+where    login_site    = :login
+and        num_tiers     = :num_client";
 
-$res_sql = mysql_query ($req_sql) or die('<br> Erreur sql f_affiche_liste_commande_fournisseurs - 1');
-$ligne = mysql_fetch_array($res_sql);
+
+$pdo_instance = SPDO::getInstance();
+$statement = $pdo_instance->prepare($req_sql);
+$statement->bindParam("login", $login, PDO::PARAM_STR);
+$statement->bindParam("num_client", $num_client, PDO::PARAM_INT);
+
+
+$statement->execute() or die('<br> Erreur sql f_affiche_liste_commande_fournisseurs - 1');
+
+$ligne = $statement->fetch(PDO::FETCH_NUM);
 $nom_client = $ligne[0];
 $flag_fournisseur_client = $ligne[1];
 
@@ -3381,7 +3719,7 @@ $req_sql = "
 select    c.num_tiers            num_client,
         c.num_commande        num_commande,
         p.num_plv            num_plv,
-		c.num_commande        '$nom_champ3',
+		c.num_commande        :nom_champ3,
         date_format(c.commande_date,'%Y-%m-%d')    'Date de commande',
         t.nom_tiers            'Client',
         round(sum(co.quantite*co.prix_ht),2) 'Montant HT',
@@ -3391,13 +3729,13 @@ from    wm_client_commande    c,
         wm_ref_tiers        t,
         wm_commande_plv        p,
         wm_commande            co
-where    c.login_site        = '$login'
+where    c.login_site        = :login
 and     c.login_site        = t.login_site
 and     c.login_site        = p.login_site
 and     c.num_tiers         = t.num_tiers
 and        c.type_commande     = 'C'
 and        c.etat_commande     = 'T'
-and        p.id_fournisseur    = $num_client
+and        p.id_fournisseur    = :num_client
 and        c.num_commande        = p.num_commande
 and        p.login_site        = co.login_site
 and        p.id_fournisseur    = co.id_fournisseur
@@ -3423,7 +3761,14 @@ $tab_size[6]='15';
 $tab_size[7]='15';
 $tab_size[8]='10';
 
-$res_sql = mysql_query ($req_sql) or die('<br> Erreur sql f_affiche_liste_commande_fournisseurs - 2');
+
+$pdo_instance = SPDO::getInstance();
+$statement = $pdo_instance->prepare($req_sql);
+$statement->bindColumn('nom_champ3', $nom_champ3, PDO::PARAM_STR);
+$statement->bindColumn('login', $login, PDO::PARAM_STR);
+$statement->bindColumn('num_client', $num_client, PDO::PARAM_INT);
+  
+$statement->execute() or die('<br> Erreur sql f_affiche_liste_commande_fournisseurs - 2');
 
 // Affichage du tableau
 echo '<table width=100% cellpadding=0 align=center border=0 class=style_form_1>';
@@ -3438,9 +3783,8 @@ echo '<td> <br> </td>';
 echo '</tr>';
 echo '</table>';
 
-f_affiche_tableau($res_sql, $tab_size);
+f_affiche_tableau($statement, $tab_size);
 
-include('inc/end_connexion.php');
 
 }
 
@@ -3497,34 +3841,34 @@ function f_form_affiche_liste_fournisseurs_produit ($login, $premiere_ligne) {
 
 echo '<option>' . $premiere_ligne . '</option>';
 
-include('inc/start_connexion.php');
+//include('inc/start_connexion.php');
 
 $req_sql = "
 select	concat(f.nom_tiers_code, ' - ', p.nom_produit) fournisseurs_prod
 from	wm_ref_tiers	f,
 		wm_produit		p
-where	f.login_site				= '$login'
+where	f.login_site				= :login
 and		f.tiers_visible				= 'O'
 and     f.flag_fournisseur_client	= 'F'
 and		f.num_tiers					= p.id_fournisseur
 and		f.login_site				= p.login
 and		p.produit_visible			= 'O'
-and		trim(concat(f.nom_tiers_code, ' - ', p.nom_produit))	!= trim('$premiere_ligne')
+and		trim(concat(f.nom_tiers_code, ' - ', p.nom_produit))	!= trim(:premiere_ligne)
 order by 1";
 
-$list_fournisseurs_prod = mysql_query ($req_sql) or die('<br> Erreur sql f_form_affiche_liste_fournisseurs_produit');
+$pdo_instance = SPDO::getInstance();
+  $statement = $pdo_instance->prepare($req_sql);
+  $statement->execute(['login' => $login, 'premiere_ligne'=> $premiere_ligne]) or die('<br> Erreur sql f_form_affiche_liste_fournisseurs_produit');
 
-while ($tab_res = mysql_fetch_array($list_fournisseurs_prod)) {
+while ($tab_res = $statement->fetch(PDO::FETCH_NUM)) {
       echo '<option>' . $tab_res[0]. '</option>';
 }
 
-include('inc/end_connexion.php');
 }
 
 // Fonction qui affiche les commandes termin�es pour un fournisseur --------------------
 function f_affiche_n_dernieres_commandes ($login, $nb_lignes) {
 
-include('inc/start_connexion.php');
 
 if(isset($_GET['sens_req'])) { $sens_req=$_GET['sens_req']; } else { $sens_req='ASC'; }
 if(isset($_GET['id_col'])) { $id_col=$_GET['id_col'] + 1 ; } else { $id_col=3; }
@@ -3540,14 +3884,20 @@ select	cc.num_commande,
 		c.nom_tiers 'Client'
 from	wm_client_commande	cc,
 		wm_ref_tiers		c
-where	cc.login_site	= '$login'
+where	cc.login_site	= :login
 and		cc.login_site	= c.login_site
 and		cc.num_tiers	= c.num_tiers
 order by cc.date_insertion desc
-limit 0, $nb_lignes";
+limit 0, :nb_lignes";
 
-$res_sql = mysql_query ($req_sql) or die('<br> Erreur sql f_affiche_n_dernieres_commandes ');
 
+  $pdo_instance = SPDO::getInstance();
+  $statement = $pdo_instance->prepare($req_sql) or die('<br> Erreur de test');
+  $statement->bindParam('login', $login, PDO::PARAM_STR);
+  $statement->bindParam('nb_lignes', $nb_lignes, PDO::PARAM_INT);
+  $statement->execute();
+  
+  
 // % du size du tableau
 $tab_size[0]='0';
 $tab_size[1]='0';
@@ -3557,16 +3907,16 @@ $tab_size[4]='15';
 $tab_size[5]='15';
 $tab_size[6]='45';
 
-f_affiche_tableau($res_sql, $tab_size);
+f_affiche_tableau($statement, $tab_size, );
 
-include('inc/end_connexion.php');
+////include('inc/end_connexion.php');
 
 }
 
 // Fonction qui affiche le top des n meilleurs clients en commission depuis la date d'entree en reference --------------------
 function f_affiche_n_top_client_fournisseur_periode ($login, $nb_clients, $date_debut, $flag_client_fournisseur) {
 
-include('inc/start_connexion.php');
+//include('inc/start_connexion.php');
 
 if(isset($_GET['sens_req'])) { $sens_req=$_GET['sens_req']; } else { $sens_req='ASC'; }
 if(isset($_GET['id_col'])) { $id_col=$_GET['id_col'] + 1 ; } else { $id_col=3; }
@@ -3580,19 +3930,19 @@ if ($flag_client_fournisseur == 'C') {
 	from	wm_client_commande	cc,
 			wm_ref_tiers		c,
 			wm_commande			co
-	where	cc.login_site		= '$login'
+	where	cc.login_site		= :login
 	and		cc.login_site		= c.login_site
 	and		cc.num_tiers		= c.num_tiers
 	and		cc.login_site		= co.login_site
 	and		cc.etat_commande	= 'T'
 	and		cc.type_commande	= 'C'
-	and		cc.commande_date	>= '$date_debut'
+	and		cc.commande_date	>= :date_debut
 	and		cc.num_commande		= co.num_commande
 	and		co.flag_ok			= 'O'
 	group by	cc.num_tiers,
 				c.nom_tiers
 	order by 3 desc
-	limit 0, $nb_clients";
+	limit 0, :nb_clients";
 }
 
 if ($flag_client_fournisseur == 'F') {
@@ -3603,38 +3953,46 @@ if ($flag_client_fournisseur == 'F') {
 	from	wm_client_commande	cc,
 			wm_ref_tiers		c,
 			wm_commande			co
-	where	cc.login_site		= '$login'
+	where	cc.login_site		= :login
 	and		cc.login_site		= c.login_site
 	and		co.id_fournisseur	= c.num_tiers
 	and		cc.login_site		= co.login_site
 	and		cc.etat_commande	= 'T'
 	and		cc.type_commande	= 'C'
-	and		cc.commande_date	>= '$date_debut'
+	and		cc.commande_date	>= :date_debut
 	and		cc.num_commande		= co.num_commande
 	and		co.flag_ok			= 'O'
 	group by	c.num_tiers,
 				c.nom_tiers
 	order by 3 desc
-	limit 0, $nb_clients";
+	limit 0, :nb_clients";
 }
 
-$res_sql = mysql_query ($req_sql) or die('<br> Erreur sql f_affiche_n_top_clients_periode ');
+$pdo_instance = SPDO::getInstance();
+  $statement = $pdo_instance->prepare($req_sql) or die('<br> Erreur de test');
+  $statement->bindParam('date_debut', $date_debut, PDO::PARAM_STR);
+  $statement->bindParam('login', $login, PDO::PARAM_STR);
+  $statement->bindParam('nb_clients', $nb_clients, PDO::PARAM_INT);
+
+  $statement->execute();
+  
+
 
 // % du size du tableau
 $tab_size[0]='0';
 $tab_size[1]='80';
 $tab_size[2]='20';
 
-f_affiche_tableau($res_sql, $tab_size);
+f_affiche_tableau($statement, $tab_size);
 
-include('inc/end_connexion.php');
+////include('inc/end_connexion.php');
 
 }
 
 // Fonction qui affiche le top client/fournisseur --------------------------------------------------------------------
 function f_affiche_top_client_fournisseurs ($login, $id_tiers, $flag_clt_fou, $top, $annee) {
 
-include('inc/start_connexion.php');
+//include('inc/start_connexion.php');
 
 if(isset($_GET['sens_req'])) { $sens_req=$_GET['sens_req']; } else { $sens_req='ASC'; }
 if(isset($_GET['id_col'])) { $id_col=$_GET['id_col'] + 1 ; } else { $id_col=3; }
@@ -3646,18 +4004,26 @@ if ($flag_clt_fou == 'C') {
 	from		wm_client_commande	cc,
 				wm_commande			c,
 				wm_ref_tiers		f
-	where		date_format(cc.commande_date, '%Y' )	= $annee
+	where		date_format(cc.commande_date, '%Y' )	= :annee
 	and			cc.num_commande							= c.num_commande
 	and			cc.etat_commande						= 'T'
-	and			cc.login_site							= '$login'
+	and			cc.login_site							= :login
 	and			cc.login_site							= c.login_site 
 	and			cc.login_site							= f.login_site
 	and			c.id_fournisseur						= f.num_tiers
 	and			c.flag_ok								= 'O'
-	and			cc.num_tiers							= $id_tiers" ;
+	and			cc.num_tiers							= :id_tiers" ;
 	
-	$res_sql	= mysql_query ($req_sql) or die('<br> Erreur sql f_affiche_top_client_fournisseurs');
-	$ligne		= mysql_fetch_row($res_sql);
+	$pdo_instance = SPDO::getInstance();
+  	$statement = $pdo_instance->prepare($req_sql);
+	$statement->bindParam("login", $login, PDO::PARAM_STR);
+
+	$statement->bindParam("annee", $annee, PDO::PARAM_INT);
+	$statement->bindParam("id_tiers", $id_tiers, PDO::PARAM_INT);
+
+	
+	$statement->execute() or die('<br> Erreur sql f_affiche_top_client_fournisseurs');
+	$ligne = $statement->fetch(PDO::FETCH_NUM);
 	$top_res	= $ligne[0];
 	
 	$limit = '';
@@ -3672,15 +4038,15 @@ if ($flag_clt_fou == 'C') {
 	from		wm_client_commande	cc,
 				wm_commande			c,
 				wm_ref_tiers		f
-	where		date_format(cc.commande_date, '%Y' )	= $annee
+	where		date_format(cc.commande_date, '%Y' )	= :annee
 	and			cc.num_commande							= c.num_commande
 	and			cc.etat_commande						= 'T'
-	and			cc.login_site							= '$login'
+	and			cc.login_site							= :login
 	and			cc.login_site							= c.login_site 
 	and			cc.login_site							= f.login_site
 	and			c.id_fournisseur						= f.num_tiers
 	and			c.flag_ok								= 'O'
-	and			cc.num_tiers							= $id_tiers
+	and			cc.num_tiers							= :id_tiers
 	group by	c.id_fournisseur,
 				f.nom_tiers
 	order by	3 DESC
@@ -3695,18 +4061,26 @@ if ($flag_clt_fou == 'F') {
 	from		wm_client_commande	cc,
 				wm_commande			c,
 				wm_ref_tiers		f
-	where		date_format(cc.commande_date, '%Y' )	= $annee
+	where		date_format(cc.commande_date, '%Y' )	= :annee
 	and			cc.num_commande							= c.num_commande
 	and			cc.etat_commande						= 'T'
-	and			cc.login_site							= '$login'
+	and			cc.login_site							= :login
 	and			cc.login_site							= c.login_site 
 	and			cc.login_site							= f.login_site
 	and			cc.num_tiers							= f.num_tiers
 	and			c.flag_ok								= 'O'
-	and			c.id_fournisseur						= $id_tiers" ;
+	and			c.id_fournisseur						= :id_tiers" ;
 	
-	$res_sql	= mysql_query ($req_sql) or die('<br> Erreur sql f_affiche_top_client_fournisseurs');
-	$ligne		= mysql_fetch_row($res_sql);
+	$pdo_instance = SPDO::getInstance();
+  	$statement = $pdo_instance->prepare($req_sql);
+
+	$statement->bindParam("login", $login, PDO::PARAM_STR);
+	$statement->bindParam("annee", $annee, PDO::PARAM_INT);
+	$statement->bindParam("id_tiers", $id_tiers, PDO::PARAM_INT);
+
+	
+	$statement->execute() or die('<br> Erreur sql f_affiche_top_client_fournisseurs');
+	$ligne = $statement->fetch(PDO::FETCH_NUM);
 	$top_res	= $ligne[0];
 	
 	$limit = '';
@@ -3721,30 +4095,37 @@ if ($flag_clt_fou == 'F') {
 	from		wm_client_commande	cc,
 				wm_commande			c,
 				wm_ref_tiers		f
-	where		date_format(cc.commande_date, '%Y' )	= $annee
+	where		date_format(cc.commande_date, '%Y' )	= :annee
 	and			cc.num_commande							= c.num_commande
 	and			cc.etat_commande						= 'T'
-	and			cc.login_site							= '$login'
+	and			cc.login_site							= :login
 	and			cc.login_site							= c.login_site 
 	and			cc.login_site							= f.login_site
 	and			cc.num_tiers							= f.num_tiers
 	and			c.flag_ok								= 'O'
-	and			c.id_fournisseur						= $id_tiers
+	and			c.id_fournisseur						= :id_tiers
 	group by	f.nom_tiers
 	order by	3 DESC
 	$limit" ;
 }
 
-$res_sql = mysql_query ($req_sql) or die('<br> Erreur sql f_affiche_top_client_fournisseurs ');
+	$pdo_instance = SPDO::getInstance();
+  	$statement = $pdo_instance->prepare($req_sql);
+	$statement->bindParam("login", $login, PDO::PARAM_STR);
+
+	$statement->bindParam("annee", $annee, PDO::PARAM_INT);
+	$statement->bindParam("id_tiers", $id_tiers, PDO::PARAM_INT);
+
+	
+	$statement->execute() or die('<br> Erreur sql f_affiche_top_client_fournisseurs ');
 
 // % du size du tableau
 $tab_size[0]='0';
 $tab_size[1]='80';
 $tab_size[2]='20';
 
-f_affiche_tableau($res_sql, $tab_size);
+f_affiche_tableau($statement, $tab_size);
 
-include('inc/end_connexion.php');
 
 }
 
@@ -3752,14 +4133,14 @@ include('inc/end_connexion.php');
 // $type --> Ct:Client / Fr:Fournisseur / Ce: Commande
 function f_verifie_info_ok ($login, $type, $id) {
 
-include('inc/start_connexion.php');
+//include('inc/start_connexion.php');
 
 if ($type == 'Ct') {
 	$req_sql = "
 	select	ifnull(num_tiers, 0)        id_req
 	from	wm_ref_tiers
-	where	login_site				= '$login'
-	and		num_tiers				= $id
+	where	login_site				= :login
+	and		num_tiers				= :id
 	and		flag_fournisseur_client	= 'C'" ;
 }
 
@@ -3767,8 +4148,8 @@ if ($type == 'Fr') {
 	$req_sql = "
 	select	ifnull(num_tiers, 0)	id_req
 	from	wm_ref_tiers
-	where	login_site				= '$login'
-	and		num_tiers				= $id
+	where	login_site				= :login
+	and		num_tiers				= :id
 	and		flag_fournisseur_client	= 'F'" ;
 }
 
@@ -3776,15 +4157,21 @@ if ($type == 'Ce') {
     $req_sql = "
 	select	ifnull(num_commande, 0)	id_req
 	from	wm_client_commande
-	where	login_site		= '$login'
-	and		num_commande	= $id" ;
+	where	login_site		= :login
+	and		num_commande	= :id" ;
 }
 
-$res_sql	= mysql_query ($req_sql) or die('<br> Erreur sql f_verifie_info_ok');
-$ligne		= mysql_fetch_row($res_sql);
-$res_req	= $ligne[0];
+$pdo_instance = SPDO::getInstance();
+$statement    = $pdo_instance->prepare($req_sql);
+//$statement->bindParam("login", $login, PDO::PARAM_STR);
+//$statement->bindParam("id", $id, PDO::PARAM_STR);
 
-include('inc/end_connexion.php');
+
+$res_sql	  = $statement->execute(['login' => $login, 'id' => $id]) or die('<br> Erreur sql f_verifie_info_ok');
+$ligne		  = $statement->fetch(PDO::FETCH_NUM);
+$res_req	  = $ligne[0];
+
+//include('inc/end_connexion.php');
 
 if ($res_req == 0) { return 1; }
 else { return 0; }
@@ -3794,17 +4181,23 @@ else { return 0; }
 // fonction qui epure les clients ----------------------------------------------
 function f_epurer_client($login) {
 
-include('inc/start_connexion.php');
+////include('inc/start_connexion.php');
+
+$pdo_instance = SPDO::getInstance();
+
 
 $req_upd_sql ="
 update	wm_ref_tiers
 set		nom_tiers             = 'A RENSEIGNER',
 		nom_tiers_code        = 'A RENSEIGNER',
 		date_modification     = CURRENT_TIMESTAMP
-where	login_site = '$login'
+where	login_site = :login
 and		(nom_tiers is null or nom_tiers = '')";
-       
-$tab = mysql_query($req_upd_sql) or die('<br> Erreur sql f_epurer_client');
+
+$statement = $pdo_instance->prepare($req_upd_sql);
+$statement->execute(['login' => $login]) or die('<br> Erreur sql f_epurer_client');
+
+
 
 // Suppression des clients supprim�s par l'utilisateur qui n'a pas de commandes
 $req_del_sql ="
@@ -3813,16 +4206,19 @@ where login_site    = '$login'
 and   tiers_visible = 'N' 
 and   num_tiers     not in ( select num_tiers 
                              from   wm_client_commande 
-		    			     where  login_site = '$login'
+		    			     where  login_site = :login
 					        )
 and   num_tiers     not in ( select id_fournisseur
                              from   wm_commande
-                             where  login_site = '$login'
+                             where  login_site = :login
                             )";
 
-$tab = mysql_query($req_del_sql) or die('<br> Erreur sql f_epurer_client');
+$statement = $pdo_instance->prepare($req_del_sql);
+$statement->execute(['login' => $login]) or die('<br> Erreur sql f_epurer_client');
 
-include('inc/end_connexion.php');
+
+
+////include('inc/end_connexion.php');
 
 }
 
@@ -3832,16 +4228,21 @@ function f_affiche_nom_client ($num_client, $login) {
 $req_sql = "
 select    nom_tiers
 from    wm_ref_tiers
-where    login_site    = '$login'
-and        num_tiers     = $num_client";
+where    login_site    = :login
+and        num_tiers     = :num_client";
 
-include('inc/start_connexion.php');
+//include('inc/start_connexion.php');
+  $pdo_instance = SPDO::getInstance();
+  $statement = $pdo_instance->prepare($req_sql);
+  $statement->bindParam('login', $login, PDO::PARAM_STR);
+  $statement->bindParam('num_client', $num_client, PDO::PARAM_INT);
 
-$res_sql    = mysql_query ($req_sql) or die('<br> Erreur sql f_affiche_nom_client');
-$ligne        = mysql_fetch_array($res_sql);
-$nom_client    = $ligne[0];
+  
+$res_sql    = $statement->execute() or die('<br> Erreur sql f_affiche_nom_client');
+$ligne      = $statement->fetch(PDO::FETCH_NUM);
+$nom_client = $ligne[0];
 
-include('inc/end_connexion.php');
+//include('inc/end_connexion.php');
 
 $url_    = 'wm_accueil.php?menu_=n_a&tiers_=client&id_client=' . $num_client;
 $lien    = "<span onClick=document.location='" . $url_ . "'; style=cursor:pointer> $nom_client </span>";
@@ -3857,33 +4258,41 @@ function f_retourne_dernier_rdv_client ($num_client, $login) {
 $req_sql_count = "
 select    count(num_rdv)
 from    wm_rdv
-where    login_site  = '$login'
-and        num_client  = $num_client
-and        date_rdv    = (select max(date_rdv) from wm_rdv where login_site = '$login' and num_client = $num_client)";
+where    login_site  = :login
+and        num_client  = :num_client
+and        date_rdv    = (select max(date_rdv) from wm_rdv where login_site = :login and num_client = :num_client)";
 
 $req_sql = "
 select    num_rdv
 from    wm_rdv
-where    login_site  = '$login'
-and        num_client  = $num_client
-and        date_rdv    = (select max(date_rdv) from wm_rdv where login_site  = '$login' and num_client = $num_client)";
+where    login_site  = :login
+and        num_client  = :num_client
+and        date_rdv    = (select max(date_rdv) from wm_rdv where login_site  = :login and num_client = :num_client)";
 
-include('inc/start_connexion.php');
+//include('inc/start_connexion.php');
 
-$res_sql    = mysql_query ($req_sql_count) or die('<br> Erreur sql f_retourne_dernier_rdv_client - 1');
-$ligne        = mysql_fetch_array($res_sql);
+$pdo_instance = SPDO::getInstance();
+  $statement = $pdo_instance->prepare($req_sql_count);
+  $statement->bindParam('login', $login, PDO::PARAM_STR);
+  $statement->bindParam('num_client', $num_client, PDO::PARAM_INT);
+
+
+$res_sql    = $statement->execute() or die('<br> Erreur sql f_retourne_dernier_rdv_client - 1');
+$ligne        = $statement->fetch(PDO::FETCH_NUM);
 $nb_rdv    = $ligne[0];
 
 if ($nb_rdv == 0) {
     $num_rdv = 0;
 }
 else {
-    $res_sql    = mysql_query ($req_sql) or die('<br> Erreur sql f_retourne_dernier_rdv_client - 2');
-    $ligne        = mysql_fetch_array($res_sql);
-    $num_rdv    = $ligne[0];
+  $statement = $pdo_instance->prepare($req_sql);
+  $statement->bindParam('login', $login, PDO::PARAM_STR);
+  $statement->bindParam('num_client', $num_client, PDO::PARAM_INT);
+  $res_sql    = $statement->execute() or die('<br> Erreur sql f_retourne_dernier_rdv_client - 2');
+  $ligne        = $statement->fetch(PDO::FETCH_NUM);
+  $num_rdv    = $ligne[0];
 }
 
-include('inc/end_connexion.php');
 
 return $num_rdv;
 
@@ -3892,16 +4301,24 @@ return $num_rdv;
 // Fonction qui affiche le tableau des RDV pour 1 client --------------------
 function f_affiche_tab_rdv_client ($num_client, $login) {
 
-include('inc/start_connexion.php');
+//include('inc/start_connexion.php');
 
 $req_sql_count = "
 select    count(num_rdv)
 from    wm_rdv
-where    login_site  = '$login'
-and        num_client  = $num_client";
+where    login_site  = :login
+and        num_client  = :num_client";
 
-$res_sql    = mysql_query ($req_sql_count) or die('<br> Erreur sql f_affiche_tab_rdv_client - 1');
-$ligne        = mysql_fetch_array($res_sql);
+
+  $pdo_instance = SPDO::getInstance();
+  $statement = $pdo_instance->prepare($req_sql_count);
+  $statement->bindParam("login", $login, PDO::PARAM_STR);
+  $statement->bindParam("num_client", $num_client, PDO::PARAM_INT);
+  
+  
+
+$res_sql    = $statement->execute() or die('<br> Erreur sql f_affiche_tab_rdv_client - 1');
+$ligne        = $statement->fetch(PDO::FETCH_NUM);
 $nb_rdv    = $ligne[0];
 
 if ($nb_rdv == 0) {
@@ -3921,12 +4338,17 @@ else {
             date_format(  date_rdv  , '%Y-%m-%d' ) 'Date RDV',
             substring(sujet, 1, 50) Sujet
     from    wm_rdv
-    where    login_site    = '$login'
-    and        num_client    = $num_client
+    where    login_site    = :login
+    and        num_client    = :num_client
     and        rdv_visible    = 'O'
-    $order_query";
+    :order_query";
+  $statement = $pdo_instance->prepare($req_sql);
+  $statement->bindParam("login", $login, PDO::PARAM_STR);
+  $statement->bindParam("num_client", $num_client, PDO::PARAM_INT);
+  $statement->bindParam("order_query", $order_query, PDO::PARAM_STR);
+  
 
-    $res_sql = mysql_query ($req_sql) or die('<br> Erreur sql f_affiche_tab_rdv_client - 2');
+    $res_sql =  $statement->execute() or die('<br> Erreur sql f_affiche_tab_rdv_client - 2');
 
     // % du size du tableau
     $tab_size[0]='0';
@@ -3934,9 +4356,9 @@ else {
     $tab_size[2]='15';
     $tab_size[3]='70';
 
-    f_affiche_tableau($res_sql, $tab_size);
+    f_affiche_tableau($statement, $tab_size);
 }
-include('inc/end_connexion.php');
+//include('inc/end_connexion.php');
 
 }
 
@@ -3949,11 +4371,11 @@ select  date_rdv,
         objectif,
         heure_rdv
 from    wm_rdv
-where	login_site	= '$login'
-and		num_client	= $num_client
-and		num_rdv		= $num_rdv";
+where	login_site	= :login
+and		num_client	= :num_client
+and		num_rdv		= :num_rdv";
 
-include('inc/start_connexion.php');
+//include('inc/start_connexion.php');
 
 if ($num_rdv == 0) {
     $ligne['date_rdv']	= '';
@@ -3963,12 +4385,20 @@ if ($num_rdv == 0) {
 }
 
 else {
-    $res_sql    = mysql_query ($req_sql) or die('<br> Erreur sql f_affiche_form_rdv_client');
-    $ligne        = mysql_fetch_array($res_sql);
+
+
+$pdo_instance = SPDO::getInstance();
+$statement = $pdo_instance->prepare($req_sql);
+$statement->bindParam('login', $login, PDO::PARAM_STR);
+
+$statement->bindParam('num_rdv', $num_rdv, PDO::PARAM_INT);
+$statement->bindParam('num_client', $num_client, PDO::PARAM_INT);
+
+$statement->execute();
+$ligne = $statement->fetch(PDO::FETCH_NUM);
 }
 
 return $ligne;
-include('inc/end_connexion.php');
 
 }
 
@@ -3977,71 +4407,92 @@ function f_ajoute_rdv ($login, $num_client) {
 
 f_supprime_rdv_invalide($login, $num_client);
 
-include('inc/start_connexion.php');
+//include('inc/start_connexion.php');
 
 $req_ins_sql ="
 insert into wm_rdv (date_insertion, date_modification, login_site, rdv_visible, num_client)
-values (CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, '$login', 'O', $num_client)";
+values (CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, :login, 'O', :num_client)";
 
-$tab = mysql_query($req_ins_sql) or die('<br> Erreur sql f_ajoute_rdv - 1');
+
+$pdo_instance = SPDO::getInstance();
+$statement = $pdo_instance->prepare($req_ins_sql);
+$statement->bindParam('login', $login, PDO::PARAM_STR);
+$statement->bindParam('num_client', $num_client, PDO::PARAM_INT);
+
+$statement->execute() or die('<br> Erreur sql f_ajoute_rdv - 1');
 
 $req_sql ="
 select    max(num_rdv) num_rdv
 from    wm_rdv
-where    login_site    = '$login'
-and        num_client    = $num_client
+where    login_site    = :login
+and        num_client    = :num_client
 and        sujet        is null";
 
-$res_sql = mysql_query ($req_sql) or die('<br> Erreur sql f_ajoute_rdv - 2');
-$ligne = mysql_fetch_array($res_sql);
+$statement = $pdo_instance->prepare($req_sql);
+$statement->bindParam('login', $login, PDO::PARAM_STR);
+$statement->bindParam('num_client', $num_client, PDO::PARAM_INT);
+$statement->execute() or die('<br> Erreur sql f_ajoute_rdv - 2');
+
+
+$ligne = $statement->fetch(PDO::FETCH_NUM);
 return $ligne[0];
 
-include('inc/end_connexion.php');
 
 }
 
 // fonction qui supprime 1 rdv invalide ----------------------------------------------
 function f_supprime_rdv_invalide ($login, $num_client) {
 
-include('inc/start_connexion.php');
 
 $req_upd_sql ="
 update	wm_rdv
 set		rdv_visible			= 'N',
 		date_modification	= CURRENT_TIMESTAMP
-where	login_site    = '$login'
-and		num_client    = $num_client
+where	login_site    = :login
+and		num_client    = :num_client
 and		(sujet  = '' or sujet is null)";
        
-$tab = mysql_query($req_upd_sql) or die('<br> Erreur sql f_supprime_rdv_invalide');
+$pdo_instance = SPDO::getInstance();
+$statement = $pdo_instance->prepare($req_upd_sql);
+$statement->bindParam('login', $login, PDO::PARAM_STR);
+$statement->bindParam('num_client', $num_client, PDO::PARAM_INT);
 
-include('inc/end_connexion.php');
+$tab = $statement->execute() or die('<br> Erreur sql f_supprime_rdv_invalide');
+
+//include('inc/end_connexion.php');
 
 }
 
 // fonction qui supprime 1 rdv ----------------------------------------------
 function f_supprime_rdv ($login, $num_client, $num_rdv) {
 
-include('inc/start_connexion.php');
+//include('inc/start_connexion.php');
 
 $req_upd_sql ="
 update	wm_rdv
 set		rdv_visible			= 'N',
 		date_modification	= CURRENT_TIMESTAMP
-where	login_site	= '$login'
-and		num_client	= $num_client
-and		num_rdv		= $num_rdv";
-       
-$tab = mysql_query($req_upd_sql) or die('<br> Erreur sql f_supprime_rdv');
+where	login_site	= :login
+and		num_client	= :num_client
+and		num_rdv		= :num_rdv";
 
-include('inc/end_connexion.php');
+$pdo_instance = SPDO::getInstance();
+$statement = $pdo_instance->prepare($req_upd_sql);
+$statement->bindParam('login', $login, PDO::PARAM_STR);
+$statement->bindParam('num_client', $num_client, PDO::PARAM_INT);
+$statement->bindParam('num_rdv', $num_rdv, PDO::PARAM_INT);
+
+
+$tab = $statement->execute() or die('<br> Erreur sql f_supprime_rdv');
+
+//include('inc/end_connexion.php');
 
 }
 
 // fonction qui modifie les infos d'un rdv_client ----------------------------------------------
 function f_modification_rdv ($login, $id_client, $num_rdv, $tab_mod) {
 
-include('inc/start_connexion.php');
+//include('inc/start_connexion.php');
 
 $date_rdv	= $tab_mod['date_rdv'];
 $sujet		= $tab_mod['sujet'];
@@ -4060,32 +4511,38 @@ where	num_client	= $id_client
 and		login_site	= '$login'
 and		num_rdv		= $num_rdv";
 
-$tab = mysql_query($req_sql) or die('<br> Erreur sql f_modification_rdv');
+$pdo_instance = SPDO::getInstance();
+$statement = $pdo_instance->prepare($req_sql);
+
+$statement->execute() or die('<br> Erreur sql f_modification_rdv');
        
-include('inc/end_connexion.php');
 
 }
 
 // fonction qui r�cup�re la date du prochain rdv d'un client ----------------------------------------------
 function f_retourne_prochain_rdv_client($login, $id_client) {
 
-include('inc/start_connexion.php');
 
 $req_sql ="
 select	date_rdv,
 		heure_rdv 
 from	wm_rdv
-where	login_site			= '$login'
-and		num_client			= $id_client
+where	login_site			= :login
+and		num_client			= :id_client
 and		date_rdv	>= CURRENT_DATE
 and		date_rdv	in (	select	max(date_rdv) date_rdv_suivant
 								from	wm_rdv
-								where	login_site	= '$login'
-								and		num_client	= $id_client
+								where	login_site	= :login
+								and		num_client	= :id_client
 								and		date_rdv	>= CURRENT_DATE)";
 
-$res_sql = mysql_query ($req_sql) or die('<br> Erreur sql f_retourne_prochain_rdv_client');
-$ligne = mysql_fetch_array($res_sql);
+$pdo_instance = SPDO::getInstance();
+$statement = $pdo_instance->prepare($req_sql);
+$statement->execute(['login' => $login, 'id_client' => $id_client]) or die('<br> Erreur sql f_retourne_prochain_rdv_client');
+
+
+$ligne = $statement->fetch(PDO::FETCH_NUM);
+print_r($ligne);
 $date_rdv_suivant	= $ligne[0];
 $heure_rdv_suivant	= $ligne[1];
 
@@ -4098,30 +4555,38 @@ else {
 
 return $date_rdv_suivant;
 
-include('inc/end_connexion.php');
+//include('inc/end_connexion.php');
 
 }
 
 // fonction qui r�cup�re la date du dernier rdv d'un client ----------------------------------------------
 function f_retourne_date_dernier_rdv_client($login, $id_client) {
 
-include('inc/start_connexion.php');
+//include('inc/start_connexion.php');
 
 $req_sql ="
 select	date_rdv,
 		heure_rdv 
 from	wm_rdv
-where	login_site	= '$login'
-and		num_client	= $id_client
+where	login_site	= :login
+and		num_client	= :id_client
 and		date_rdv	<= CURRENT_DATE
 and		date_rdv	in (	select	max(date_rdv) date_rdv
 							from	wm_rdv
-							where	login_site	= '$login'
-							and		num_client	= $id_client
+							where	login_site	= :login
+							and		num_client	= :id_client
 							and		date_rdv	<= CURRENT_DATE)";
 
-$res_sql = mysql_query ($req_sql) or die('<br> Erreur sql f_retourne_dernier_rdv_client');
-$ligne = mysql_fetch_array($res_sql);
+
+
+
+ 
+$pdo_instance = SPDO::getInstance();
+
+$statement = $pdo_instance->prepare($req_sql);
+$statement->execute(['login' => $login, 'id_client'=> $id_client]) or die('<br> Erreur sql f_retourne_dernier_rdv_client');
+
+$ligne = $statement->fetch(PDO::FETCH_NUM);
 $dernier_rdv_client	= $ligne[0];
 $heure_rdv_client	= $ligne[1];
 
@@ -4134,26 +4599,29 @@ else {
 
 return $dernier_rdv_client;
 
-include('inc/end_connexion.php');
+//include('inc/end_connexion.php');
 
 }
 
 // Fonction qui retourne le n� de client par rapport � un n� de rdv
 function f_retourne_client_id_num_rdv($num_rdv) {
 
-include('inc/start_connexion.php');
+//include('inc/start_connexion.php');
 
 $req_sql = " 
 select	num_client
 from	wm_rdv
-where	num_rdv		= $num_rdv" ;
+where	num_rdv		= :num_rdv" ;
 
-$res_sql = mysql_query ($req_sql) or die('<br> Erreur sql f_retourne_client_id_num_rdv ');
-$ligne = mysql_fetch_row($res_sql);
+
+  $pdo_instance = SPDO::getInstance();
+  $statement = $pdo_instance->prepare($req_sql);
+  $statement->bindParam('num_rdv', $num_rdv, PDO::PARAM_INT);
+  $statement->execute() or die('<br> Erreur sql f_retourne_client_id_num_rdv ');
+  $ligne = $statement->fetch(PDO::FETCH_NUM);
 
 return $ligne [0];
 
-include('inc/end_connexion.php');
 
 }
 
@@ -4166,7 +4634,7 @@ if ($id_col > 7) { $id_col=6; }
 
 $order_query='order by ' . $id_col . ' ' . $sens_req;
 
-include('inc/start_connexion.php');
+//include('inc/start_connexion.php');
 
 $req_sql = " 
 select	r.num_rdv,
@@ -4178,13 +4646,15 @@ select	r.num_rdv,
 		r.heure_rdv	'Heure'
 from	wm_rdv			r,
 		wm_ref_tiers	c
-where	r.login_site		= '$login' 
+where	r.login_site		= :login 
 and		r.login_site		= c.login_site
 and		r.date_rdv			>= CURRENT_DATE
 and		r.num_client		= c.num_tiers
 $order_query";
 
-$res_sql = mysql_query ($req_sql) or die('<br> Erreur sql f_affiche_calendrier');
+$pdo_instance = SPDO::getInstance();
+  $statement = $pdo_instance->prepare($req_sql);
+  $statement->execute(['login' => $login]) or die('<br> Erreur sql f_affiche_calendrier');
 
 // % du size du tableau
 $tab_size[0]='0';
@@ -4195,9 +4665,8 @@ $tab_size[4]='35';
 $tab_size[5]='10';
 $tab_size[6]='10';
 
-f_affiche_tableau($res_sql, $tab_size);
+f_affiche_tableau($statement, $tab_size);
 
-include('inc/end_connexion.php');
 
 }
 
@@ -4246,19 +4715,29 @@ function f_retourne_chaine_sans_accent($var) {
 // Fonction qui teste si le client n'existe pas retourne 0, 1 s'il existe -------------------------------------------------
 function f_test_nom_tiers_doublon($login, $nom_tiers, $flag_client_fournisseur, $num_tiers) {
 
-include('inc/start_connexion.php');
+//include('inc/start_connexion.php');
 
 $req_sql = " 
 select	count(*)
 from	wm_ref_tiers
-where	login_site				= '$login'
-and		nom_tiers_code			= trim('$nom_tiers')
-and		flag_fournisseur_client	= '$flag_client_fournisseur'
+where	login_site				= :login
+and		nom_tiers_code			= trim(:nom_tiers)
+and		flag_fournisseur_client	= :flag_client_fournisseur
 and		tiers_visible			= 'O'
-and		num_tiers				!= $num_tiers";
+and		num_tiers				!= :num_tiers";
 
-$res_sql = mysql_query ($req_sql) or die('<br> Erreur sql f_test_nom_tiers_doublon ');
-$ligne = mysql_fetch_row($res_sql);
+
+$pdo_instance = SPDO::getInstance();
+$statement = $pdo_instance->prepare($req_sql);
+$statement->bindParam("login", $login, PDO::PARAM_STR);
+
+$statement->bindParam("nom_tiers", $nom_tiers, PDO::PARAM_STR);
+$statement->bindParam("flag_client_fournisseur", $flag_client_fournisseur, PDO::PARAM_STR);
+$statement->bindParam("num_tiers", $num_tiers, PDO::PARAM_INT);
+
+$statement->execute() or die('<br> Erreur sql f_test_nom_tiers_doublon');
+
+$ligne = $statement->fetch(PDO::FETCH_NUM);
 
 if ($ligne [0] == 0) {
 	return 0;
@@ -4267,47 +4746,48 @@ else {
 	return 1;
 }
 
-include('inc/end_connexion.php');
+//include('inc/end_connexion.php');
 
 }
 
 // Fonction qui teste si le client est un client ou un prospect ------------------------------------------------------------
 function f_modification_tiers_client_prospect($login) {
-
-include('inc/start_connexion.php');
+	$pdo_instance = SPDO::getInstance();
 
 $req_sql = " 
 update	wm_ref_tiers
 set		flag_client_prospect	= 'P'
-where	login_site				= '$login'
+where	login_site				= :login
 and		flag_fournisseur_client	= 'C'
 and		tiers_visible			= 'O'";
 
-$res_sql = mysql_query ($req_sql) or die('<br> Erreur sql f_modification_tiers_client_prospect - 1');
+
+$statement = $pdo_instance->prepare($req_sql);
+$statement->execute(['login' => $login]) or die('<br> Erreur sql f_modification_tiers_client_prospect - 1');
 
 $req_sql = " 
 update	wm_ref_tiers
 set		flag_client_prospect	= 'C'
 where	flag_fournisseur_client	= 'C'
 and		tiers_visible			= 'O'
-and		login_site				= '$login'
+and		login_site				= :login
 and		num_tiers				in (	select distinct num_tiers
 										from			wm_client_commande
-										where			login_site			= '$login'
+										where			login_site			= :login
 										and				type_commande		= 'C'
 										and				etat_commande		= 'T'
 										and				commande_visible	= 'O')";
 
-$res_sql = mysql_query ($req_sql) or die('<br> Erreur sql f_modification_tiers_client_prospect - 2');
+$statement = $pdo_instance->prepare($req_sql);
+$statement->execute(['login' => $login]) or die('<br> Erreur sql f_modification_tiers_client_prospect - 2');;
 
-include('inc/end_connexion.php');
 
 }
 
 // Fonction qui retourne le pied de mail ------------------------------------------------------------
 function f_retourne_pied_de_mail($login) {
 
-include('inc/start_connexion.php');
+//include('inc/start_connexion.php');
 
 $req_sql = "
 select	nom,
@@ -4324,10 +4804,12 @@ select	nom,
 		nom_tiers,
 		ifnull(trim(pied_de_mail),'')
 from	ref_comptes
-where	login = '$login'";
+where	login = :login";
 
-$res_sql = mysql_query ($req_sql) or die('<br> Erreur sql f_retourne_pied_de_mail');
-$ligne = mysql_fetch_array($res_sql);
+$pdo_instance = SPDO::getInstance();
+$statement = $pdo_instance->prepare($req_sql);
+$statement->execute(['login' => $login]) or die('<br> Erreur sql f_retourne_pied_de_mail');
+$ligne = $statement->fetch(PDO::FETCH_NUM);
 
 $cpt_nom			= $ligne[0];
 $cpt_prenom			= $ligne[1];
@@ -4343,13 +4825,14 @@ $cpt_tel_mobile		= $ligne[10];
 $cpt_nom_tiers		= $ligne[11];
 $contenu_pied_page	= $ligne[12];
 
-include('inc/end_connexion.php');
+//include('inc/end_connexion.php');
 
 if ($contenu_pied_page == '') {
 $pied_de_page = "--------------------------------------------------------------- <br>
 $cpt_nom_tiers <br>
 $cpt_nom $cpt_prenom <br>
-$cpt_adresse <br>
+// FIx 
+$cpt_adresse1 <br>
 Tel fixe : $cpt_tel_fixe <br>
 Tel Mobile : $cpt_tel_mobile <br><br>
 www.winemanager.fr<br>
@@ -4366,7 +4849,7 @@ return $pied_de_page;
 // Fonction qui retourne le n� de client par rapport � un n� de rdv ---------------------------------
 function f_retourne_adr_livraison_client ($login, $num_commande) {
 
-include('inc/start_connexion.php');
+//include('inc/start_connexion.php');
 
 $req_sql = " 
 select	case when cc.livraison_adr_flag = 'O' and trim(cc.livraison_adr) != '' then cc.livraison_adr 
@@ -4374,19 +4857,22 @@ select	case when cc.livraison_adr_flag = 'O' and trim(cc.livraison_adr) != '' th
 		end livraison_adr
 from	wm_client_commande	cc,
 		wm_ref_tiers		c
-where	cc.login_site	= '$login'
+where	cc.login_site	= :login
 and		cc.login_site	= c.login_site
 and		cc.num_tiers	= c.num_tiers
-and		cc.num_commande	= $num_commande" ;
+and		cc.num_commande	= :num_commande" ;
 
-$res_sql = mysql_query ($req_sql) or die('<br> Erreur sql f_retourne_adr_livraison_client ');
-$ligne = mysql_fetch_row($res_sql);
 
+$pdo_instance = SPDO::getInstance();
+$statement = $pdo_instance->prepare($req_sql);
+$statement->bindParam("login", $login, PDO::PARAM_STR);
+$statement->bindParam("num_commande", $num_commande, PDO::PARAM_INT);
+$statement->execute() or die('<br> Erreur sql f_retourne_adr_livraison_client ');
+$ligne = $statement->fetch(PDO::FETCH_NUM);
 $adr_livraison_commande = nl2br($ligne[0]);
 
 return $adr_livraison_commande;
 
-include('inc/end_connexion.php');
 
 }
 
@@ -4412,7 +4898,7 @@ function f_enregistre_pdf($content, $mode, $file_name, $chemin) { //mode : portr
 // fonction qui affiche les stats des utilisateurs  ----------------------------------------------
 function f_affiche_indicateurs_utilisateurs () {
 
-include('inc/start_connexion.php');
+//include('inc/start_connexion.php');
 
 if(isset($_GET['sens_req'])) { $sens_req=$_GET['sens_req']; } else { $sens_req='ASC'; }
 if(isset($_GET['id_col'])) { $id_col=$_GET['id_col']; } else { $id_col=1; }
@@ -4442,18 +4928,21 @@ $tab_size[5]='10';
 $tab_size[6]= '10';
 $tab_size[7]= '10';
 
-$res_sql = mysql_query ($req_sql) or die('<br> Erreur sql f_affiche_indicateurs_utilisateurs');
+$pdo_instance = SPDO::getInstance();
+  $statement = $pdo_instance->prepare($req_sql);
 
-f_affiche_tableau($res_sql, $tab_size);
+  $statement->execute() or die('<br> Erreur sql f_affiche_indicateurs_utilisateurs');
 
-include('inc/end_connexion.php');
+f_affiche_tableau($statement, $tab_size);
+
+//include('inc/end_connexion.php');
 
 }
 
 // fonction qui affiche les versionning  ----------------------------------------------
 function f_affiche_version ($nb_jours, $flag_visible) {
 
-include('inc/start_connexion.php');
+//include('inc/start_connexion.php');
 
 if ($flag_visible=='O') { $condition_flag_visible = " and flag_visible = 'O'"; } else { $condition_flag_visible = ''; }
 
@@ -4472,33 +4961,40 @@ $tab_size[0]='15';
 $tab_size[1]='15';
 $tab_size[2]='70';
 
-$res_sql = mysql_query ($req_sql) or die('<br> Erreur sql f_affiche_version');
 
-f_affiche_tableau($res_sql, $tab_size);
+$pdo_instance = SPDO::getInstance();
+$statement = $pdo_instance->prepare($req_sql);
+$statement->execute() or die('<br> Erreur sql f_affiche_version');
 
-include('inc/end_connexion.php');
+f_affiche_tableau($statement, $tab_size);
+
+//include('inc/end_connexion.php');
 
 }
 
 // fonction qui retourne le nb de ligne du versionning  ----------------------------------------------
 function f_retourne_nb_lignes_versionning($nb_jours, $flag_visible) {
 
-include('inc/start_connexion.php');
+////include('inc/start_connexion.php');
 
 if ($flag_visible=='O') { $condition_flag_visible = " and flag_visible = 'O'"; } else { $condition_flag_visible = ''; }
 
 $req_sql = " 
 select	ifnull(count(*), 0) nb_lignes
 from	wm_versioning
-where	dt_mep		>= date_add(CURRENT_DATE, INTERVAL -$nb_jours DAY) 
+where	dt_mep		>= date_add(CURRENT_DATE, INTERVAL -:nb_jours DAY) 
 $condition_flag_visible ";
 
-$res_sql = mysql_query ($req_sql) or die('<br> Erreur sql f_retourne_nb_lignes_versionning ');
-$ligne = mysql_fetch_row($res_sql);
+$pdo_instance = SPDO::getInstance();
+$statement = $pdo_instance->prepare($req_sql) or die('<br> Erreur sql f_retourne_nb_lignes_versionning ');
+$statement->bindParam('nb_jours', $nb_jours, PDO::PARAM_INT);
+$statement->execute(); // Récupérer les résultats 
+$tab_form = $statement->fetch(PDO::FETCH_ASSOC);
 
-return $ligne [0];
 
-include('inc/end_connexion.php');
+return $tab_form ['nb_lignes'];
+
+////include('inc/end_connexion.php');
 
 }
 
@@ -4537,13 +5033,17 @@ if ($flag_total == 'N') {
 	$req_sql = "
 	select	nom_tiers, flag_fournisseur_client
 	from	wm_ref_tiers       t
-	where	login_site    = '$login'
-	and		num_tiers     = $id_tiers";
+	where	login_site    = :login
+	and		num_tiers     = :id_tiers";
 
-	include('inc/start_connexion.php');
-	$res_sql = mysql_query ($req_sql) or die('<br> Erreur sql f_affiche_stat_produit - 1');
-	$ligne = mysql_fetch_array($res_sql);
-	include('inc/end_connexion.php');
+	$pdo_instance = SPDO::getInstance();
+	$statement = $pdo_instance->prepare($req_sql);
+	$statement->bindParam("login", $login, PDO::PARAM_STR);
+
+	$statement->bindParam("id_tiers", $id_tiers, PDO::PARAM_INT);
+	$statement->execute() or die('<br> Erreur sql f_affiche_stat_produit - 1');
+	$ligne = $statement->fetch(PDO::FETCH_NUM);
+	
 	$nom_client = $ligne[0];
 	$flag_fournisseur_client = $ligne[1]; 
 
@@ -4700,11 +5200,10 @@ if ($flag_client_fournisseur == 'C') {
 	}
 }
 
-//echo $req_sql ;
+$pdo_instance = SPDO::getInstance();
+  $statement = $pdo_instance->prepare($req_sql);
 
-include('inc/start_connexion.php');
-
-$res_sql = mysql_query ($req_sql) or die('<br> Erreur sql f_affiche_stat_produit - 2');
+  $statement->execute() or die('<br> Erreur sql f_affiche_stat_produit - 2');
 
 if ($flag_total == 'N') {
 // % du size du tableau
@@ -4745,10 +5244,9 @@ $tab_size[13]='5';
 $tab_size[14]='5';
 }
 
-if ($flag_total == 'N') { f_affiche_tableau($res_sql, $tab_size); }
-if ($flag_total == 'Y') { f_affiche_tableau_global($res_sql, $tab_size); }
+if ($flag_total == 'N') { f_affiche_tableau($statement, $tab_size); }
+if ($flag_total == 'Y') { f_affiche_tableau_global($statement, $tab_size); }
 
-include('inc/end_connexion.php');
 
 }
 
@@ -4873,9 +5371,10 @@ if ($flag_client_fournisseur == 'F') {
 
 //echo $req_sql ;
 
-include('inc/start_connexion.php');
-
-$res_sql = mysql_query ($req_sql) or die('<br> Erreur sql f_affiche_stat_evolution');
+////include('inc/start_connexion.php');
+  $pdo_instance = SPDO::getInstance();
+  $statement = $pdo_instance->prepare($req_sql);
+  $statement->execute() or die('<br> Erreur sql f_affiche_stat_evolution');
 
 if ($flag_total == 'N') {
 // % du size du tableau
@@ -4915,10 +5414,10 @@ $tab_size[13]='5';
 $tab_size[14]='5';
 }
 
-if ($flag_total == 'N') { f_affiche_tableau($res_sql, $tab_size); }
-if ($flag_total == 'Y') { f_affiche_tableau_global($res_sql, $tab_size); }
+if ($flag_total == 'N') { f_affiche_tableau($statement, $tab_size); }
+if ($flag_total == 'Y') { f_affiche_tableau_global($statement, $tab_size); }
 
-include('inc/end_connexion.php');
+//include('inc/end_connexion.php');
 
 }
 
@@ -4940,10 +5439,13 @@ $tab_size[2]='0';
 $tab_size[3]='15';
 $tab_size[4]='10';
 
-include('inc/start_connexion.php');
-$res_sql = mysql_query ($req_sql) or die('<br> Erreur sql f_affiche_stat_evolution');
-f_affiche_tableau($res_sql, $tab_size);
-include('inc/end_connexion.php');
+
+
+
+$pdo_instance = SPDO::getInstance();
+$statement = $pdo_instance->prepare($req_sql);
+$statement->execute() or die('<br> Erreur sql f_affiche_stat_evolution');
+f_affiche_tableau($statement, $tab_size);
 
 $date = date("ymd");
 $extract_filename = ('_'.$login.'_'.$date.'_export.xls' ); 
@@ -4955,7 +5457,7 @@ $extract_filename = ('_'.$login.'_'.$date.'_export.xls' );
 // fonction qui va g�rer la req. et l'envoi des donn�es reporting  ----------------------------------------------
 function f_gestion_envoi_reporting($login, $num_reporting) {
 
-include('inc/start_connexion.php');
+////include('inc/start_connexion.php');
 
 $req_sql = "
 select req_sql,
@@ -4965,10 +5467,10 @@ select req_sql,
 from   wm_ref_reporting 
 where  num_reporting = $num_reporting";
 
-$res_sql = mysql_query ($req_sql) or die('<br> Erreur sql f_gestion_envoi_reporting - 1');
-$ligne = mysql_fetch_row($res_sql);
-
-include('inc/end_connexion.php');
+$pdo_instance = SPDO::getInstance();
+$statement = $pdo_instance->prepare($req_sql);
+$statement->execute() or die('<br> Erreur sql f_gestion_envoi_reporting - 1');
+$ligne = $statement->fetch(PDO::FETCH_NUM);
 
 $req_sql      = str_replace('$login', $login, "$ligne[0]");
 $mail_objet   = $ligne[1];
@@ -4984,34 +5486,40 @@ $chemin = 'exportxls/';
 
 f_exporte_requete_excel($login, $req_sql, $chemin, $nom_fichier, $mail_objet, $ligne_1_csv);
 
-include('inc/start_connexion.php');
+////include('inc/start_connexion.php');
 $ins = "insert into wm_log_reporting (login, num_reporting, date_envoi) select '$login', $num_reporting, CURRENT_TIMESTAMP";
-$tab = mysql_query($ins) or die('<br> Erreur sql f_gestion_envoi_reporting - 2');
-include('inc/end_connexion.php');
+
+
+
+  $pdo_instance = SPDO::getInstance();
+  $statement = $pdo_instance->prepare($ins);
+  $statement->execute() or die('<br> Erreur sql f_gestion_envoi_reporting - 2');
 
 }
 
 // fonction qui exporte les r�sultats d une requete sous excel  ----------------------------------------------
 function f_exporte_requete_excel($login, $req_sql, $chemin, $extract_filename, $mail_objet, $ligne_1_csv) {
 
-include('inc/start_connexion.php');
 
-$res_sql = mysql_query ($req_sql) or die('<br> Erreur sql f_exporte_requete_excel');
+
+	$pdo_instance = SPDO::getInstance();
+	$statement = $pdo_instance->prepare($req_sql);
+	$statement->execute() or die('<br> Erreur sql f_exporte_requete_excel');
 
 $fp=fopen($chemin.$extract_filename, "w+");
 
 fwrite($fp,utf8_decode("$ligne_1_csv"));
 
-for ($i = 0; $i < mysql_num_fields($res_sql); $i++) {
+for ($i = 0; $i < $statement->columnCount(); $i++) {
 	
 	if($i != 0) {
-		$nom_colonne = mysql_field_name($res_sql, $i);
+		$nom_colonne = $statement->getColumnMeta($i)['name'];
 		fwrite($fp,utf8_decode("$nom_colonne"));
 	}
 }
 fwrite($fp,utf8_decode("\n"));
 
-while ($ligne = mysql_fetch_row($res_sql)) {
+while ($ligne = $statement->fetch(PDO::FETCH_NUM)) {
 	
     for ($j = 0; $j < count($ligne); $j++) {
 		$value_field=$ligne[$j];
@@ -5022,7 +5530,7 @@ while ($ligne = mysql_fetch_row($res_sql)) {
 
 fclose($chemin.$extract_filename); 	
 
-include('inc/end_connexion.php');
+//include('inc/end_connexion.php');
 
 f_envoi_extraction_excel($login, $chemin, $extract_filename, $mail_objet);
 
@@ -5155,18 +5663,18 @@ from	wm_client_commande	cc,
 		wm_ref_tiers		c,
 		wm_commande_plv		p,
 		wm_ref_tiers		f
-where	cc.login_site		= '$login'
+where	cc.login_site		= :login
 and		cc.login_site		= c.login_site
 and		cc.login_site		= p.login_site
 and		cc.num_tiers		= c.num_tiers
 and		cc.num_commande		= p.num_commande
-and		p.num_plv			= $num_plv
+and		p.num_plv			= :num_plv
 and		p.id_fournisseur	= f.num_tiers";
 
-include('inc/start_connexion.php');
-
-$res_sql = mysql_query ($req_sql) or die('<br> Erreur sql f_envoi_plv - 1');
-$ligne = mysql_fetch_array($res_sql);
+$pdo_instance = SPDO::getInstance();
+$statement = $pdo_instance->prepare($req_sql);
+$statement->execute() or die('<br> Erreur sql f_envoi_plv - 1');
+$ligne = $statement->fetch(PDO::FETCH_NUM);
 
 $num_tiers				= $ligne[0];
 $commande_date			= $ligne[1];
@@ -5219,10 +5727,14 @@ select	nom,
 		ifnull(e_mail_1, '') e_mail_1,
 		ifnull(e_mail_2, '') e_mail_2
 from	ref_comptes
-where	login = '$login'";
+where	login = :login";
 
-$res_sql = mysql_query ($req_sql) or die('<br> Erreur sql f_envoi_plv - 2');
-$ligne = mysql_fetch_array($res_sql);
+
+
+$pdo_instance = SPDO::getInstance();
+  $statement = $pdo_instance->prepare($req_sql);
+  $statement->execute(['login' => $login]) or die('<br> Erreur sql f_envoi_plv - 2');
+  $ligne = $statement->fetch(PDO::FETCH_NUM);
 
 $cpt_nom			= $ligne[0];
 $cpt_prenom			= $ligne[1];
@@ -5382,14 +5894,19 @@ select	f.nom_tiers,
 		p.plv
 from	wm_commande_plv	p,
 		wm_ref_tiers	f
-where	p.num_plv			= $num_plv
-and		p.login_site		= '$login'
+where	p.num_plv			= :num_plv
+and		p.login_site		= :login
 and		p.login_site		= f.login_site
 and		p.id_fournisseur	= f.num_tiers";
 
-$res_sql = mysql_query ($req_sql) or die('<br> Erreur sql f_envoyer_commande_client - 3');
 
-while ($ligne = mysql_fetch_row($res_sql)) {
+$pdo_instance = SPDO::getInstance();
+$statement = $pdo_instance->prepare($req_sql);
+$statement->bindParam("login", $login, PDO::PARAM_STR);
+$statement->bindParam("num_plv", $num_plv, PDO::PARAM_INT);
+$statement->execute() or die('<br> Erreur sql f_envoyer_commande_client - 3');
+
+while ($ligne = $statement->fetch(PDO::FETCH_NUM)) {
 	for ($j = 0; $j < count($ligne); $j++) {
 		$v_nom_tiers	= $ligne[0];
 		$v_plv			= $ligne[1];
@@ -5422,20 +5939,24 @@ select	f.nom_tiers,
 from	wm_commande		c,
 		wm_ref_tiers	f,
 		wm_commande_plv	p
-where	p.num_plv			= $num_plv
+where	p.num_plv			= :num_plv
 and		p.num_commande		= c.num_commande
-and		p.login_site		= '$login'
+and		p.login_site		= :login
 and		p.login_site		= c.login_site
 and		c.login_site		= f.login_site
 and		c.id_fournisseur	= f.num_tiers
 and		p.id_fournisseur	= c.id_fournisseur";
 
-$res_sql = mysql_query ($req_sql) or die('<br> Erreur sql f_envoi_plv - 3');
+$pdo_instance = SPDO::getInstance();
+$statement = $pdo_instance->prepare($req_sql);
+$statement->bindParam("login", $login, PDO::PARAM_STR);
+$statement->bindParam("num_plv", $num_plv, PDO::PARAM_INT);
+$statement->execute() or die('<br> Erreur sql f_envoi_plv - 3');
 
 $total_facture_ht	= 0;
 $total_facture_com	= 0;
 
-while ($ligne = mysql_fetch_row($res_sql)) {
+while ($ligne = $statement->fetch(PDO::FETCH_NUM)) {
 
 	for ($j = 0; $j < count($ligne); $j++) {
 		$v_produit				= $ligne[1];
@@ -5470,7 +5991,7 @@ $contenu_commande = $contenu_commande . "
 </tr>
 </table><br><br>";
 
-include('inc/end_connexion.php');
+//include('inc/end_connexion.php');
 
 $contenu_mail =  $contenu_mail . $contenu_plv . $contenu_commande;
 $contenu_mail .= ' </page>'; 
