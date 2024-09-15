@@ -219,8 +219,8 @@ function insert_tb_log () {
   $pdo_instance = SPDO::getInstance();
   $statement = $pdo_instance->prepare($request_count) or die('<br> Erreur de test');
   $statement->execute(); // Récupérer les résultats 
-  $tab_form = $statement->fetch(PDO::FETCH_ASSOC);
-  if ($tab_form['res'] != 1) { 
+  //$tab_form = $statement->fetch(PDO::FETCH_ASSOC);
+  if ($statement->rowCount() != 1) { 
 	// Insertion dans tb_log si la condition est remplie 
 	$ins = "INSERT INTO tb_log (stamp_date, visitor) VALUES (CURRENT_TIMESTAMP, :visitor)"; 
 	$stmt_ins = $pdo_instance->prepare($ins); 
